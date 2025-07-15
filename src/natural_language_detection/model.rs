@@ -4,6 +4,7 @@ use ndarray::{Array, ArrayD};
 
 pub struct NaturalLanguageModel {
     session: ort::Session,
+    nlp_model: NlpModel,
 }
 
 impl NaturalLanguageModel {
@@ -16,7 +17,7 @@ impl NaturalLanguageModel {
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_model_from_file(model_path)?;
 
-        Ok(NaturalLanguageModel { session })
+        Ok(NaturalLanguageModel { session, nlp_model: NlpModel::new() })
     }
 
     pub fn predict(&self, input_text: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -46,6 +47,30 @@ impl NaturalLanguageModel {
             }
         } else {
             Err("No output from model".into())
+        }
+    }
+
+    pub fn predict_intent(&self, text: &str) -> String {
+        self.nlp_model.detect_language(text)
+    }
+}
+
+pub struct NlpModel;
+
+impl NlpModel {
+    pub fn new() -> Self {
+        NlpModel
+    }
+
+    pub fn detect_language(&self, text: &str) -> String {
+        println!("Detecting language for: '{}'", text);
+        // Dummy detection
+        if text.contains("hello") || text.contains("world") {
+            "English".to_string()
+        } else if text.contains("hola") {
+            "Spanish".to_string()
+        } else {
+            "Unknown".to_string()
         }
     }
 }

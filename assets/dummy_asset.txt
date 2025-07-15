@@ -1,0 +1,3 @@
+This is a dummy asset file.
+It is embedded into the binary using the asset_macro.
+Hello from the embedded asset!

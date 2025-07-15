@@ -1,107 +1,97 @@
-use fuzzy_matcher::{FuzzyMatcher as FuzzyMatcherTrait, skim::SkimMatcherV2};
-use std::collections::HashMap;
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher as TraitFuzzyMatcher; // Alias to avoid conflict with struct name
 
-#[derive(Debug, Clone)]
-pub struct Suggestion {
-    pub text: String,
-    pub score: i64,
-    pub suggestion_type: SuggestionType,
-}
-
-#[derive(Debug, Clone)]
-pub enum SuggestionType {
-    Command,
-    File,
-    Directory,
-    History,
-    Alias,
-}
-
+/// A wrapper around `skim`'s fuzzy matcher for consistent usage.
 pub struct FuzzyMatcher {
     matcher: SkimMatcherV2,
-    command_cache: Vec<String>,
-    file_cache: Vec<String>,
-    history_cache: Vec<String>,
 }
 
 impl FuzzyMatcher {
+    /// Creates a new `FuzzyMatcher` with default settings.
     pub fn new() -> Self {
         FuzzyMatcher {
             matcher: SkimMatcherV2::default(),
-            command_cache: Self::load_system_commands(),
-            file_cache: Vec::new(),
-            history_cache: Vec::new(),
         }
     }
 
-    pub fn get_suggestions(&self, input: &str) -> Vec<Suggestion> {
-        if input.is_empty() {
-            return Vec::new();
-        }
-
-        let mut suggestions = Vec::new();
-
-        // Match against commands
-        for command in &self.command_cache {
-            if let Some(score) = self.matcher.fuzzy_match(command, input) {
-                suggestions.push(Suggestion {
-                    text: command.clone(),
-                    score,
-                    suggestion_type: SuggestionType::Command,
-                });
-            }
-        }
-
-        // Match against history
-        for history_item in &self.history_cache {
-            if let Some(score) = self.matcher.fuzzy_match(history_item, input) {
-                suggestions.push(Suggestion {
-                    text: history_item.clone(),
-                    score,
-                    suggestion_type: SuggestionType::History,
-                });
-            }
-        }
-
-        // Sort by score (descending)
-        suggestions.sort_by(|a, b| b.score.cmp(&a.score));
-        suggestions.truncate(10); // Limit to top 10 suggestions
-
-        suggestions
+    /// Performs a fuzzy match between a `query` and a `text`.
+    /// Returns `Some(score)` if a match is found, otherwise `None`.
+    pub fn fuzzy_match(&self, text: &str, query: &str) -> Option<i64> {
+        self.matcher.fuzzy_match(text, query)
     }
 
-    pub fn update_history(&mut self, command: String) {
-        if !self.history_cache.contains(&command) {
-            self.history_cache.push(command);
-            
-            // Keep only the last 100 history items
-            if self.history_cache.len() > 100 {
-                self.history_cache.remove(0);
-            }
+    /// Performs a fuzzy match and returns the matched indices if a match is found.
+    pub fn fuzzy_match_indices(&self, text: &str, query: &str) -> Option<(i64, Vec<usize>)> {
+        self.matcher.fuzzy_match_indices(text, query)
+    }
+
+    /// Filters a list of candidates based on a fuzzy query.
+    /// Returns a vector of `(score, candidate)` tuples, sorted by score in descending order.
+    pub fn filter_candidates(&self, query: &str, candidates: &[String]) -> Vec<(i64, String)> {
+        let mut results: Vec<(i64, String)> = candidates
+            .iter()
+            .filter_map(|candidate| {
+                self.matcher.fuzzy_match(candidate, query)
+                    .map(|score| (score, candidate.clone()))
+            })
+            .collect();
+
+        results.sort_by(|a, b| b.0.cmp(&a.0)); // Sort by score, descending
+        results
+    }
+}
+
+impl Default for FuzzyMatcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fuzzy_match_basic() {
+        let matcher = FuzzyMatcher::new();
+        assert!(matcher.fuzzy_match("hello world", "hlo").is_some());
+        assert!(matcher.fuzzy_match("rust programming", "rust prog").is_some());
+        assert!(matcher.fuzzy_match("apple", "aple").is_some());
+        assert!(matcher.fuzzy_match("apple", "xyz").is_none());
+    }
+
+    #[test]
+    fn test_fuzzy_match_indices() {
+        let matcher = FuzzyMatcher::new();
+        if let Some((score, indices)) = matcher.fuzzy_match_indices("hello world", "hlo") {
+            assert!(score > 0);
+            assert_eq!(indices, vec![0, 2, 4]); // h, l, o
+        } else {
+            panic!("Match not found");
         }
     }
 
-    fn load_system_commands() -> Vec<String> {
-        // This would typically scan PATH and load available commands
-        vec![
-            "ls".to_string(),
-            "cd".to_string(),
-            "pwd".to_string(),
-            "cat".to_string(),
-            "grep".to_string(),
-            "find".to_string(),
-            "git".to_string(),
-            "npm".to_string(),
-            "cargo".to_string(),
-            "docker".to_string(),
-            "kubectl".to_string(),
-            "ssh".to_string(),
-            "scp".to_string(),
-            "curl".to_string(),
-            "wget".to_string(),
-            "vim".to_string(),
-            "nano".to_string(),
-            "code".to_string(),
-        ]
+    #[test]
+    fn test_filter_candidates() {
+        let matcher = FuzzyMatcher::new();
+        let candidates = vec![
+            "foo_bar_baz".to_string(),
+            "foobar".to_string(),
+            "fobaz".to_string(),
+            "qux".to_string(),
+        ];
+        let results = matcher.filter_candidates("fb", &candidates);
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].1, "foobar"); // Order might vary slightly based on score, but these two should be present
+        assert_eq!(results[1].1, "fobaz");
+    }
+
+    #[test]
+    fn test_empty_query() {
+        let matcher = FuzzyMatcher::new();
+        let candidates = vec!["test".to_string()];
+        let results = matcher.filter_candidates("", &candidates);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].1, "test");
     }
 }

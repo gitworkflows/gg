@@ -1,73 +1,59 @@
-use iced::{Element, widget::{
-    button, column, container, text, slider, checkbox, text_input, 
-    pick_list, row, scrollable, tabs, Tab
-}};
-use iced::{Alignment, Length};
-
+use iced::{
+    widget::{column, row, text, button, checkbox, text_input, Space},
+    Element, Length, Color,
+};
+use crate::config::{UserPreferences, KeyBindings, PromptSettings};
 use crate::terminal::Message;
-use crate::config::{UserPreferences, CursorStyle, KeyBindings, NotificationSettings, PerformanceSettings, PromptSettings, PromptStyle};
+use crate::themes::WarpTheme; // Assuming WarpTheme is accessible
 
 #[derive(Debug, Clone)]
 pub enum PreferencesMessage {
-    TabSelected(PreferencesTab),
-    FontSizeChanged(u16),
+    ToggleVisibility,
+    // User Preferences
+    ToggleFuzzySearch(bool),
+    ToggleCollaboration(bool),
+    ToggleWelcomeMessage(bool),
+    MaxHistorySizeChanged(String),
+    ToggleAutoUpdate(bool),
+    // Font Settings
+    FontSizeChanged(String),
     FontFamilyChanged(String),
-    ShellChanged(String),
-    AutoSaveToggled(bool),
-    ShowTimestampsToggled(bool),
-    FuzzySearchToggled(bool),
-    HistorySizeChanged(usize),
-    ScrollSensitivityChanged(f32),
-    AnimationSpeedChanged(f32),
-    BlurBackgroundToggled(bool),
-    TransparencyChanged(f32),
-    CursorStyleChanged(CursorStyle),
-    NotificationToggled(bool),
-    CommandCompletionToggled(bool),
-    ErrorNotificationToggled(bool),
-    SoundToggled(bool),
-    MaxFpsChanged(u32),
-    GpuAccelerationToggled(bool),
-    MemoryLimitChanged(usize),
-    LazyRenderingToggled(bool),
-    BufferSizeChanged(usize),
-    KeyBindingChanged(String, String),
-    ResetToDefaults,
-    Save,
-    Cancel,
-    PromptTabSelected(PromptTab), // New
-    PromptStyleChanged(PromptStyle), // New
-    SameLinePromptToggled(bool), // New
-    ContextChipToggled(String, bool), // New (chip name, enabled)
-    ContextChipMoved(String, usize, usize), // New (chip name, from index, to index)
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum PreferencesTab {
-    General,
-    Appearance,
-    Performance,
-    KeyBindings,
-    Notifications,
-    Prompt, // Add this line
-}
-
-// Define a new enum for Prompt sub-tabs (if needed, for now just one)
-#[derive(Debug, Clone, PartialEq)]
-pub enum PromptTab {
-    General,
-    ContextChips,
+    // Shell Settings
+    ShellPathChanged(String),
+    // Keybindings
+    SubmitInputKeyChanged(String),
+    HistoryUpKeyChanged(String),
+    HistoryDownKeyChanged(String),
+    ClearTerminalKeyChanged(String),
+    ToggleFullscreenKeyChanged(String),
+    OpenCommandPaletteKeyChanged(String),
+    OpenPreferencesKeyChanged(String),
+    OpenThemeCustomizerKeyChanged(String),
+    OpenProfileManagerKeyChanged(String),
+    OpenWorkflowBrowserKeyChanged(String),
+    OpenWarpDriveKeyChanged(String), // New message for Warp Drive keybinding
+    // Prompt Settings
+    ToggleShowUser(bool),
+    ToggleShowHost(bool),
+    ToggleShowCwd(bool),
+    ToggleShowGitStatus(bool),
+    UserSymbolChanged(String),
+    HostSymbolChanged(String),
+    CwdSymbolChanged(String),
+    GitSymbolChanged(String),
+    PromptSymbolChanged(String),
+    // Save
+    SavePreferences,
 }
 
 pub struct PreferencesWindow {
-    active_tab: PreferencesTab,
+    is_visible: bool,
     preferences: UserPreferences,
     font_family: String,
-    font_size: u16,
+    font_size: String, // Stored as String for text input
     shell: String,
     keybindings: KeyBindings,
-    prompt_settings: PromptSettings, // Add this line
-    is_visible: bool,
+    prompt_settings: PromptSettings,
 }
 
 impl PreferencesWindow {
@@ -77,17 +63,16 @@ impl PreferencesWindow {
         font_size: u16,
         shell: String,
         keybindings: KeyBindings,
-        prompt_settings: PromptSettings, // Add this line
+        prompt_settings: PromptSettings,
     ) -> Self {
-        PreferencesWindow {
-            active_tab: PreferencesTab::General,
+        Self {
+            is_visible: false,
             preferences,
             font_family,
-            font_size,
+            font_size: font_size.to_string(),
             shell,
             keybindings,
-            prompt_settings, // Add this line
-            is_visible: false,
+            prompt_settings,
         }
     }
 
@@ -105,467 +90,492 @@ impl PreferencesWindow {
 
     pub fn update(&mut self, message: PreferencesMessage) -> Option<Message> {
         match message {
-            PreferencesMessage::TabSelected(tab) => {
-                self.active_tab = tab;
+            PreferencesMessage::ToggleVisibility => {
+                self.is_visible = !self.is_visible;
                 None
             }
-            PreferencesMessage::FontSizeChanged(size) => {
-                self.font_size = size;
+            PreferencesMessage::ToggleFuzzySearch(b) => {
+                self.preferences.enable_fuzzy_search = b;
                 None
             }
-            PreferencesMessage::FontFamilyChanged(family) => {
-                self.font_family = family;
+            PreferencesMessage::ToggleCollaboration(b) => {
+                self.preferences.enable_collaboration = b;
                 None
             }
-            PreferencesMessage::ShellChanged(shell) => {
-                self.shell = shell;
+            PreferencesMessage::ToggleWelcomeMessage(b) => {
+                self.preferences.show_welcome_message = b;
                 None
             }
-            PreferencesMessage::AutoSaveToggled(enabled) => {
-                self.preferences.auto_save_session = enabled;
-                None
-            }
-            PreferencesMessage::ShowTimestampsToggled(enabled) => {
-                self.preferences.show_timestamps = enabled;
-                None
-            }
-            PreferencesMessage::FuzzySearchToggled(enabled) => {
-                self.preferences.enable_fuzzy_search = enabled;
-                None
-            }
-            PreferencesMessage::HistorySizeChanged(size) => {
-                self.preferences.max_history_size = size;
-                None
-            }
-            PreferencesMessage::ScrollSensitivityChanged(sensitivity) => {
-                self.preferences.scroll_sensitivity = sensitivity;
-                None
-            }
-            PreferencesMessage::AnimationSpeedChanged(speed) => {
-                self.preferences.animation_speed = speed;
-                None
-            }
-            PreferencesMessage::BlurBackgroundToggled(enabled) => {
-                self.preferences.blur_background = enabled;
-                None
-            }
-            PreferencesMessage::TransparencyChanged(transparency) => {
-                self.preferences.transparency = transparency;
-                None
-            }
-            PreferencesMessage::CursorStyleChanged(style) => {
-                self.preferences.cursor_style = style;
-                None
-            }
-            PreferencesMessage::NotificationToggled(enabled) => {
-                self.preferences.notification_settings.enable_notifications = enabled;
-                None
-            }
-            PreferencesMessage::CommandCompletionToggled(enabled) => {
-                self.preferences.notification_settings.command_completion = enabled;
-                None
-            }
-            PreferencesMessage::ErrorNotificationToggled(enabled) => {
-                self.preferences.notification_settings.error_notifications = enabled;
-                None
-            }
-            PreferencesMessage::SoundToggled(enabled) => {
-                self.preferences.notification_settings.sound_enabled = enabled;
-                None
-            }
-            PreferencesMessage::MaxFpsChanged(fps) => {
-                self.preferences.performance.max_fps = fps;
-                None
-            }
-            PreferencesMessage::GpuAccelerationToggled(enabled) => {
-                self.preferences.performance.gpu_acceleration = enabled;
-                None
-            }
-            PreferencesMessage::MemoryLimitChanged(limit) => {
-                self.preferences.performance.memory_limit_mb = limit;
-                None
-            }
-            PreferencesMessage::LazyRenderingToggled(enabled) => {
-                self.preferences.performance.lazy_rendering = enabled;
-                None
-            }
-            PreferencesMessage::BufferSizeChanged(size) => {
-                self.preferences.performance.buffer_size = size;
-                None
-            }
-            PreferencesMessage::KeyBindingChanged(action, binding) => {
-                // Update keybinding based on action
-                match action.as_str() {
-                    "new_tab" => self.keybindings.new_tab = binding,
-                    "close_tab" => self.keybindings.close_tab = binding,
-                    "next_tab" => self.keybindings.next_tab = binding,
-                    "prev_tab" => self.keybindings.prev_tab = binding,
-                    "clear_screen" => self.keybindings.clear_screen = binding,
-                    "copy" => self.keybindings.copy = binding,
-                    "paste" => self.keybindings.paste = binding,
-                    "search" => self.keybindings.search = binding,
-                    "preferences" => self.keybindings.preferences = binding,
-                    "theme_selector" => self.keybindings.theme_selector = binding,
-                    _ => {}
+            PreferencesMessage::MaxHistorySizeChanged(s) => {
+                if let Ok(size) = s.parse::<usize>() {
+                    self.preferences.max_history_size = size;
                 }
                 None
             }
-            PreferencesMessage::ResetToDefaults => {
-                self.preferences = UserPreferences::default();
-                self.keybindings = KeyBindings::default();
-                self.font_size = 14;
-                self.font_family = "JetBrains Mono".to_string();
-                self.shell = "zsh".to_string();
-                self.prompt_settings = PromptSettings::default(); // Reset prompt settings
+            PreferencesMessage::ToggleAutoUpdate(b) => {
+                self.preferences.enable_auto_update = b;
                 None
             }
-            PreferencesMessage::Save => {
-                self.is_visible = false;
+            PreferencesMessage::FontSizeChanged(s) => {
+                self.font_size = s;
+                None
+            }
+            PreferencesMessage::FontFamilyChanged(s) => {
+                self.font_family = s;
+                None
+            }
+            PreferencesMessage::ShellPathChanged(s) => {
+                self.shell = s;
+                None
+            }
+            PreferencesMessage::SubmitInputKeyChanged(s) => {
+                self.keybindings.submit_input = s;
+                None
+            }
+            PreferencesMessage::HistoryUpKeyChanged(s) => {
+                self.keybindings.history_up = s;
+                None
+            }
+            PreferencesMessage::HistoryDownKeyChanged(s) => {
+                self.keybindings.history_down = s;
+                None
+            }
+            PreferencesMessage::ClearTerminalKeyChanged(s) => {
+                self.keybindings.clear_terminal = s;
+                None
+            }
+            PreferencesMessage::ToggleFullscreenKeyChanged(s) => {
+                self.keybindings.toggle_fullscreen = s;
+                None
+            }
+            PreferencesMessage::OpenCommandPaletteKeyChanged(s) => {
+                self.keybindings.open_command_palette = s;
+                None
+            }
+            PreferencesMessage::OpenPreferencesKeyChanged(s) => {
+                self.keybindings.open_preferences = s;
+                None
+            }
+            PreferencesMessage::OpenThemeCustomizerKeyChanged(s) => {
+                self.keybindings.open_theme_customizer = s;
+                None
+            }
+            PreferencesMessage::OpenProfileManagerKeyChanged(s) => {
+                self.keybindings.open_profile_manager = s;
+                None
+            }
+            PreferencesMessage::OpenWorkflowBrowserKeyChanged(s) => {
+                self.keybindings.open_workflow_browser = s;
+                None
+            }
+            PreferencesMessage::OpenWarpDriveKeyChanged(s) => {
+                self.keybindings.open_warp_drive = s;
+                None
+            }
+            PreferencesMessage::ToggleShowUser(b) => {
+                self.prompt_settings.show_user = b;
+                None
+            }
+            PreferencesMessage::ToggleShowHost(b) => {
+                self.prompt_settings.show_host = b;
+                None
+            }
+            PreferencesMessage::ToggleShowCwd(b) => {
+                self.prompt_settings.show_cwd = b;
+                None
+            }
+            PreferencesMessage::ToggleShowGitStatus(b) => {
+                self.prompt_settings.show_git_status = b;
+                None
+            }
+            PreferencesMessage::UserSymbolChanged(s) => {
+                self.prompt_settings.user_symbol = s;
+                None
+            }
+            PreferencesMessage::HostSymbolChanged(s) => {
+                self.prompt_settings.host_symbol = s;
+                None
+            }
+            PreferencesMessage::CwdSymbolChanged(s) => {
+                self.prompt_settings.cwd_symbol = s;
+                None
+            }
+            PreferencesMessage::GitSymbolChanged(s) => {
+                self.prompt_settings.git_symbol = s;
+                None
+            }
+            PreferencesMessage::PromptSymbolChanged(s) => {
+                self.prompt_settings.prompt_symbol = s;
+                None
+            }
+            PreferencesMessage::SavePreferences => {
+                let font_size_parsed = self.font_size.parse::<u16>().unwrap_or(16);
                 Some(Message::PreferencesSaved {
                     preferences: self.preferences.clone(),
                     font_family: self.font_family.clone(),
-                    font_size: self.font_size,
+                    font_size: font_size_parsed,
                     shell: self.shell.clone(),
                     keybindings: self.keybindings.clone(),
-                    prompt_settings: self.prompt_settings.clone(), // Pass prompt settings
+                    prompt_settings: self.prompt_settings.clone(),
                 })
-            }
-            PreferencesMessage::Cancel => {
-                self.is_visible = false;
-                None
-            }
-            // New prompt message handling
-            PreferencesMessage::PromptTabSelected(tab) => {
-                self.active_tab = PreferencesTab::Prompt; // Ensure we are on the Prompt tab
-                // If you had sub-tabs within Prompt, you'd update a sub-tab state here
-                None
-            }
-            PreferencesMessage::PromptStyleChanged(style) => {
-                self.prompt_settings.style = style;
-                None
-            }
-            PreferencesMessage::SameLinePromptToggled(enabled) => {
-                self.prompt_settings.same_line_prompt = enabled;
-                None
-            }
-            PreferencesMessage::ContextChipToggled(chip_name, enabled) => {
-                if enabled {
-                    if !self.prompt_settings.context_chips.contains(&chip_name) {
-                        self.prompt_settings.context_chips.push(chip_name);
-                    }
-                } else {
-                    self.prompt_settings.context_chips.retain(|c| c != &chip_name);
-                }
-                None
-            }
-            PreferencesMessage::ContextChipMoved(chip_name, from_idx, to_idx) => {
-                // This is a simplified move. For a real drag-and-drop, you'd need more complex logic.
-                if let Some(index) = self.prompt_settings.context_chips.iter().position(|c| c == &chip_name) {
-                    if index == from_idx { // Only move if the chip is at the expected 'from' position
-                        let chip = self.prompt_settings.context_chips.remove(from_idx);
-                        self.prompt_settings.context_chips.insert(to_idx, chip);
-                    }
-                }
-                None
             }
         }
     }
 
     pub fn view(&self) -> Element<PreferencesMessage> {
-        if !self.is_visible {
-            return container(text("")).into();
-        }
+        let theme = WarpTheme::default_dark(); // Use a default theme for the preferences UI
+        let background_color = theme.get_block_background_color(theme.is_dark_theme());
+        let foreground_color = theme.get_foreground_color();
+        let border_color = theme.get_border_color();
+        let accent_color = theme.get_accent_color();
 
-        let tabs = tabs(
-            self.active_tab.clone(),
-            vec![
-                (PreferencesTab::General, Tab::new("General")),
-                (PreferencesTab::Appearance, Tab::new("Appearance")),
-                (PreferencesTab::Performance, Tab::new("Performance")),
-                (PreferencesTab::KeyBindings, Tab::new("Key Bindings")),
-                (PreferencesTab::Notifications, Tab::new("Notifications")),
-                (PreferencesTab::Prompt, Tab::new("Prompt")), // Add this line
-            ],
-            PreferencesMessage::TabSelected,
-        );
-
-        let content = match self.active_tab {
-            PreferencesTab::General => self.general_tab(),
-            PreferencesTab::Appearance => self.appearance_tab(),
-            PreferencesTab::Performance => self.performance_tab(),
-            PreferencesTab::KeyBindings => self.keybindings_tab(),
-            PreferencesTab::Notifications => self.notifications_tab(),
-            PreferencesTab::Prompt => self.prompt_tab(), // Add this line
+        let input_style = iced::widget::text_input::Appearance {
+            background: iced::Background::Color(background_color),
+            border: iced::Border {
+                color: border_color,
+                width: 1.0,
+                radius: 4.0.into(),
+            },
+            icon_color: foreground_color,
+            placeholder_color: theme.get_terminal_color("white", false),
+            value_color: foreground_color,
+            selection_color: accent_color,
         };
 
-        let buttons = row![
-            button("Reset to Defaults")
-                .on_press(PreferencesMessage::ResetToDefaults),
-            button("Cancel")
-                .on_press(PreferencesMessage::Cancel),
-            button("Save")
-                .on_press(PreferencesMessage::Save),
-        ]
-        .spacing(8)
-        .align_items(Alignment::Center);
+        let checkbox_style = iced::widget::checkbox::Appearance {
+            background: iced::Background::Color(background_color),
+            border_radius: 4.0.into(),
+            border_width: 1.0,
+            border_color,
+            text_color: foreground_color,
+        };
 
-        container(
-            column![
-                tabs,
-                scrollable(content).height(Length::Fill),
-                buttons,
+        let section_title = |text: &str| text::text(text).size(20).color(foreground_color);
+
+        let preferences_section = column![
+            section_title("General Preferences"),
+            checkbox("Enable Fuzzy Search", self.preferences.enable_fuzzy_search)
+                .on_toggle(PreferencesMessage::ToggleFuzzySearch)
+                .style(checkbox_style),
+            checkbox("Enable Collaboration", self.preferences.enable_collaboration)
+                .on_toggle(PreferencesMessage::ToggleCollaboration)
+                .style(checkbox_style),
+            checkbox("Show Welcome Message", self.preferences.show_welcome_message)
+                .on_toggle(PreferencesMessage::ToggleWelcomeMessage)
+                .style(checkbox_style),
+            row![
+                text("Max History Size:").color(foreground_color),
+                text_input("1000", &self.preferences.max_history_size.to_string())
+                    .on_input(PreferencesMessage::MaxHistorySizeChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fixed(100.0)),
             ]
-            .spacing(16)
-            .padding(16)
-        )
-        .width(Length::Fixed(600.0))
-        .height(Length::Fixed(500.0))
-        .style(|theme: &iced::Theme| {
-            container::Appearance {
-                background: Some(iced::Background::Color(iced::Color::from_rgb(0.1, 0.1, 0.1))),
-                border: iced::Border {
-                    color: iced::Color::from_rgb(0.3, 0.3, 0.3),
-                    width: 2.0,
-                    radius: 8.0.into(),
-                },
-                ..Default::default()
-            }
-        })
-        .into()
-    }
-
-    fn general_tab(&self) -> Element<PreferencesMessage> {
-        column![
-            self.create_section("Terminal Settings", vec![
-                self.create_text_input("Font Family", &self.font_family, PreferencesMessage::FontFamilyChanged),
-                self.create_slider("Font Size", self.font_size as f32, 8.0, 32.0, |v| PreferencesMessage::FontSizeChanged(v as u16)),
-                self.create_text_input("Default Shell", &self.shell, PreferencesMessage::ShellChanged),
-            ]),
-            self.create_section("Session Settings", vec![
-                self.create_checkbox("Auto-save session", self.preferences.auto_save_session, PreferencesMessage::AutoSaveToggled),
-                self.create_checkbox("Show timestamps", self.preferences.show_timestamps, PreferencesMessage::ShowTimestampsToggled),
-                self.create_checkbox("Enable fuzzy search", self.preferences.enable_fuzzy_search, PreferencesMessage::FuzzySearchToggled),
-            ]),
-            self.create_section("History Settings", vec![
-                self.create_slider("Max history size", self.preferences.max_history_size as f32, 100.0, 10000.0, |v| PreferencesMessage::HistorySizeChanged(v as usize)),
-            ]),
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            checkbox("Enable Auto Update", self.preferences.enable_auto_update)
+                .on_toggle(PreferencesMessage::ToggleAutoUpdate)
+                .style(checkbox_style),
         ]
-        .spacing(16)
-        .into()
-    }
+        .spacing(10);
 
-    fn appearance_tab(&self) -> Element<PreferencesMessage> {
-        let cursor_styles = vec![CursorStyle::Block, CursorStyle::Underline, CursorStyle::Beam];
-        
-        column![
-            self.create_section("Visual Effects", vec![
-                self.create_checkbox("Blur background", self.preferences.blur_background, PreferencesMessage::BlurBackgroundToggled),
-                self.create_slider("Transparency", self.preferences.transparency, 0.1, 1.0, PreferencesMessage::TransparencyChanged),
-                self.create_slider("Animation speed", self.preferences.animation_speed, 0.1, 3.0, PreferencesMessage::AnimationSpeedChanged),
-                self.create_slider("Scroll sensitivity", self.preferences.scroll_sensitivity, 0.1, 5.0, PreferencesMessage::ScrollSensitivityChanged),
-            ]),
-            self.create_section("Cursor", vec![
-                container(
-                    row![
-                        text("Cursor Style:").width(Length::Fixed(120.0)),
-                        pick_list(
-                            cursor_styles,
-                            Some(self.preferences.cursor_style.clone()),
-                            PreferencesMessage::CursorStyleChanged
-                        )
-                    ]
-                    .align_items(Alignment::Center)
-                ).into()
-            ]),
-        ]
-        .spacing(16)
-        .into()
-    }
-
-    fn performance_tab(&self) -> Element<PreferencesMessage> {
-        column![
-            self.create_section("Rendering", vec![
-                self.create_checkbox("GPU acceleration", self.preferences.performance.gpu_acceleration, PreferencesMessage::GpuAccelerationToggled),
-                self.create_checkbox("Lazy rendering", self.preferences.performance.lazy_rendering, PreferencesMessage::LazyRenderingToggled),
-                self.create_slider("Max FPS", self.preferences.performance.max_fps as f32, 30.0, 144.0, |v| PreferencesMessage::MaxFpsChanged(v as u32)),
-            ]),
-            self.create_section("Memory", vec![
-                self.create_slider("Memory limit (MB)", self.preferences.performance.memory_limit_mb as f32, 128.0, 2048.0, |v| PreferencesMessage::MemoryLimitChanged(v as usize)),
-                self.create_slider("Buffer size", self.preferences.performance.buffer_size as f32, 1000.0, 50000.0, |v| PreferencesMessage::BufferSizeChanged(v as usize)),
-            ]),
-        ]
-        .spacing(16)
-        .into()
-    }
-
-    fn keybindings_tab(&self) -> Element<PreferencesMessage> {
-        let keybindings = vec![
-            ("New Tab", "new_tab", &self.keybindings.new_tab),
-            ("Close Tab", "close_tab", &self.keybindings.close_tab),
-            ("Next Tab", "next_tab", &self.keybindings.next_tab),
-            ("Previous Tab", "prev_tab", &self.keybindings.prev_tab),
-            ("Clear Screen", "clear_screen", &self.keybindings.clear_screen),
-            ("Copy", "copy", &self.keybindings.copy),
-            ("Paste", "paste", &self.keybindings.paste),
-            ("Search", "search", &self.keybindings.search),
-            ("Preferences", "preferences", &self.keybindings.preferences),
-            ("Theme Selector", "theme_selector", &self.keybindings.theme_selector),
-        ];
-
-        let keybinding_inputs: Vec<Element<PreferencesMessage>> = keybindings
-            .into_iter()
-            .map(|(label, action, binding)| {
-                container(
-                    row![
-                        text(label).width(Length::Fixed(150.0)),
-                        text_input("", binding)
-                            .on_input(move |new_binding| PreferencesMessage::KeyBindingChanged(action.to_string(), new_binding))
-                            .width(Length::Fixed(200.0)),
-                    ]
-                    .align_items(Alignment::Center)
-                    .spacing(8)
-                ).into()
-            })
-            .collect();
-
-        column(keybinding_inputs)
-            .spacing(8)
-            .into()
-    }
-
-    fn notifications_tab(&self) -> Element<PreferencesMessage> {
-        column![
-            self.create_section("Notification Settings", vec![
-                self.create_checkbox("Enable notifications", self.preferences.notification_settings.enable_notifications, PreferencesMessage::NotificationToggled),
-                self.create_checkbox("Command completion notifications", self.preferences.notification_settings.command_completion, PreferencesMessage::CommandCompletionToggled),
-                self.create_checkbox("Error notifications", self.preferences.notification_settings.error_notifications, PreferencesMessage::ErrorNotificationToggled),
-                self.create_checkbox("Sound notifications", self.preferences.notification_settings.sound_enabled, PreferencesMessage::SoundToggled),
-            ]),
-        ]
-        .spacing(16)
-        .into()
-    }
-
-    fn create_section(&self, title: &str, items: Vec<Element<PreferencesMessage>>) -> Element<PreferencesMessage> {
-        container(
-            column![
-                text(title).size(18),
-                column(items).spacing(8)
+        let font_section = column![
+            section_title("Font Settings"),
+            row![
+                text("Font Family:").color(foreground_color),
+                text_input("Fira Code", &self.font_family)
+                    .on_input(PreferencesMessage::FontFamilyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
             ]
-            .spacing(8)
-        )
-        .padding(8)
-        .style(|theme: &iced::Theme| {
-            container::Appearance {
-                background: Some(iced::Background::Color(iced::Color::from_rgb(0.05, 0.05, 0.05))),
-                border: iced::Border {
-                    color: iced::Color::from_rgb(0.2, 0.2, 0.2),
-                    width: 1.0,
-                    radius: 4.0.into(),
-                },
-                ..Default::default()
-            }
-        })
-        .into()
-    }
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("Font Size:").color(foreground_color),
+                text_input("16", &self.font_size)
+                    .on_input(PreferencesMessage::FontSizeChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fixed(100.0)),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+        ]
+        .spacing(10);
 
-    fn create_checkbox(&self, label: &str, checked: bool, message: fn(bool) -> PreferencesMessage) -> Element<PreferencesMessage> {
-        container(
-            checkbox(label, checked)
-                .on_toggle(message)
-        ).into()
-    }
+        let shell_section = column![
+            section_title("Shell Settings"),
+            row![
+                text("Shell Path:").color(foreground_color),
+                text_input("/bin/bash", &self.shell)
+                    .on_input(PreferencesMessage::ShellPathChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+        ]
+        .spacing(10);
 
-    fn create_slider<F>(&self, label: &str, value: f32, min: f32, max: f32, message: F) -> Element<PreferencesMessage>
-    where
-        F: Fn(f32) -> PreferencesMessage + 'static,
-    {
+        let keybindings_section = column![
+            section_title("Keybindings"),
+            row![
+                text("Submit Input:").color(foreground_color),
+                text_input("Enter", &self.keybindings.submit_input)
+                    .on_input(PreferencesMessage::SubmitInputKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("History Up:").color(foreground_color),
+                text_input("Up", &self.keybindings.history_up)
+                    .on_input(PreferencesMessage::HistoryUpKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("History Down:").color(foreground_color),
+                text_input("Down", &self.keybindings.history_down)
+                    .on_input(PreferencesMessage::HistoryDownKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("Clear Terminal:").color(foreground_color),
+                text_input("Ctrl+L", &self.keybindings.clear_terminal)
+                    .on_input(PreferencesMessage::ClearTerminalKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("Toggle Fullscreen:").color(foreground_color),
+                text_input("F11", &self.keybindings.toggle_fullscreen)
+                    .on_input(PreferencesMessage::ToggleFullscreenKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("Open Command Palette:").color(foreground_color),
+                text_input("Ctrl+P", &self.keybindings.open_command_palette)
+                    .on_input(PreferencesMessage::OpenCommandPaletteKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("Open Preferences:").color(foreground_color),
+                text_input("Ctrl+,", &self.keybindings.open_preferences)
+                    .on_input(PreferencesMessage::OpenPreferencesKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("Open Theme Customizer:").color(foreground_color),
+                text_input("Ctrl+T", &self.keybindings.open_theme_customizer)
+                    .on_input(PreferencesMessage::OpenThemeCustomizerKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("Open Profile Manager:").color(foreground_color),
+                text_input("Ctrl+Shift+P", &self.keybindings.open_profile_manager)
+                    .on_input(PreferencesMessage::OpenProfileManagerKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("Open Workflow Browser:").color(foreground_color),
+                text_input("Ctrl+W", &self.keybindings.open_workflow_browser)
+                    .on_input(PreferencesMessage::OpenWorkflowBrowserKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("Open Warp Drive:").color(foreground_color),
+                text_input("Ctrl+Shift+D", &self.keybindings.open_warp_drive)
+                    .on_input(PreferencesMessage::OpenWarpDriveKeyChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fill),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+        ]
+        .spacing(10);
+
+        let prompt_section = column![
+            section_title("Prompt Settings"),
+            checkbox("Show User", self.prompt_settings.show_user)
+                .on_toggle(PreferencesMessage::ToggleShowUser)
+                .style(checkbox_style),
+            row![
+                text("User Symbol:").color(foreground_color),
+                text_input("👤", &self.prompt_settings.user_symbol)
+                    .on_input(PreferencesMessage::UserSymbolChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fixed(50.0)),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            checkbox("Show Host", self.prompt_settings.show_host)
+                .on_toggle(PreferencesMessage::ToggleShowHost)
+                .style(checkbox_style),
+            row![
+                text("Host Symbol:").color(foreground_color),
+                text_input("💻", &self.prompt_settings.host_symbol)
+                    .on_input(PreferencesMessage::HostSymbolChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fixed(50.0)),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            checkbox("Show CWD", self.prompt_settings.show_cwd)
+                .on_toggle(PreferencesMessage::ToggleShowCwd)
+                .style(checkbox_style),
+            row![
+                text("CWD Symbol:").color(foreground_color),
+                text_input("📁", &self.prompt_settings.cwd_symbol)
+                    .on_input(PreferencesMessage::CwdSymbolChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fixed(50.0)),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            checkbox("Show Git Status", self.prompt_settings.show_git_status)
+                .on_toggle(PreferencesMessage::ToggleShowGitStatus)
+                .style(checkbox_style),
+            row![
+                text("Git Symbol:").color(foreground_color),
+                text_input("🌿", &self.prompt_settings.git_symbol)
+                    .on_input(PreferencesMessage::GitSymbolChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fixed(50.0)),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+            row![
+                text("Prompt Symbol:").color(foreground_color),
+                text_input("❯", &self.prompt_settings.prompt_symbol)
+                    .on_input(PreferencesMessage::PromptSymbolChanged)
+                    .padding(8)
+                    .size(16)
+                    .style(input_style)
+                    .width(Length::Fixed(50.0)),
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center),
+        ]
+        .spacing(10);
+
+
         container(
             column![
                 row![
-                    text(label).width(Length::Fixed(120.0)),
-                    text(format!("{:.1}", value)).width(Length::Fixed(50.0)),
+                    text("Preferences").size(28).width(Length::Fill).color(foreground_color),
+                    button("Close").on_press(PreferencesMessage::ToggleVisibility)
+                        .style(iced::widget::button::text::Appearance {
+                            background: Some(iced::Background::Color(Color::from_rgb(0.8, 0.2, 0.2))),
+                            border_radius: 4.0.into(),
+                            text_color: Color::WHITE,
+                            ..Default::default()
+                        }),
                 ]
-                .align_items(Alignment::Center),
-                slider(min..=max, value, message)
-                    .width(Length::Fixed(200.0))
-            ]
-            .spacing(4)
-        ).into()
-    }
-
-    fn create_text_input(&self, label: &str, value: &str, message: fn(String) -> PreferencesMessage) -> Element<PreferencesMessage> {
-        container(
-            row![
-                text(label).width(Length::Fixed(120.0)),
-                text_input("", value)
-                    .on_input(message)
-                    .width(Length::Fixed(200.0)),
-            ]
-            .align_items(Alignment::Center)
-            .spacing(8)
-        ).into()
-    }
-
-    fn prompt_tab(&self) -> Element<PreferencesMessage> {
-        let prompt_styles = vec![PromptStyle::Warp, PromptStyle::Shell];
-        let available_chips = vec![
-            "cwd".to_string(),
-            "git".to_string(),
-            "kubernetes".to_string(),
-            "pyenv".to_string(),
-            "date".to_string(),
-            "time".to_string(),
-            // Add more as needed
-        ];
-
-        let context_chip_toggles: Vec<Element<PreferencesMessage>> = available_chips
-            .into_iter()
-            .map(|chip| {
-                let is_enabled = self.prompt_settings.context_chips.contains(&chip);
-                self.create_checkbox(&format!("{} chip", chip), is_enabled, move |checked| {
-                    PreferencesMessage::ContextChipToggled(chip.clone(), checked)
-                })
-            })
-            .collect();
-
-        column![
-            self.create_section("Prompt Style", vec![
-                container(
-                    row![
-                        text("Prompt Type:").width(Length::Fixed(120.0)),
-                        pick_list(
-                            prompt_styles,
-                            Some(self.prompt_settings.style.clone()),
-                            PreferencesMessage::PromptStyleChanged
-                        )
+                .spacing(10)
+                .align_items(iced::Alignment::Center),
+                scrollable(
+                    column![
+                        preferences_section,
+                        Space::with_height(Length::Fixed(20.0)),
+                        font_section,
+                        Space::with_height(Length::Fixed(20.0)),
+                        shell_section,
+                        Space::with_height(Length::Fixed(20.0)),
+                        keybindings_section,
+                        Space::with_height(Length::Fixed(20.0)),
+                        prompt_section,
                     ]
-                    .align_items(Alignment::Center)
-                ).into(),
-                self.create_checkbox("Same line prompt", self.prompt_settings.same_line_prompt, PreferencesMessage::SameLinePromptToggled),
-            ]),
-            self.create_section("Context Chips", context_chip_toggles),
-        ]
-        .spacing(16)
+                    .spacing(20)
+                    .padding(10)
+                )
+                .width(Length::Fill)
+                .height(Length::FillPortion(1)),
+                button("Save").on_press(PreferencesMessage::SavePreferences)
+                    .style(iced::widget::button::text::Appearance {
+                        background: Some(iced::Background::Color(accent_color)),
+                        border_radius: 4.0.into(),
+                        text_color: Color::BLACK,
+                        ..Default::default()
+                    })
+                    .width(Length::Fill),
+            ]
+            .spacing(20)
+            .padding(20)
+        )
+        .width(Length::Fixed(800.0))
+        .height(Length::Fixed(700.0))
+        .center_x()
+        .center_y()
+        .style(move |_theme: &iced::Theme| iced::widget::container::Appearance {
+            background: Some(theme.get_background_color()),
+            border_color: theme.get_border_color(),
+            border_width: 2.0,
+            border_radius: 8.0.into(),
+            ..Default::default()
+        })
         .into()
-    }
-}
-
-impl std::fmt::Display for CursorStyle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CursorStyle::Block => write!(f, "Block"),
-            CursorStyle::Underline => write!(f, "Underline"),
-            CursorStyle::Beam => write!(f, "Beam"),
-        }
-    }
-}
-
-impl std::fmt::Display for PromptStyle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PromptStyle::Warp => write!(f, "Warp Prompt"),
-            PromptStyle::Shell => write!(f, "Shell Prompt (PS1)"),
-        }
     }
 }

@@ -1,23 +1,25 @@
-accent: "#009688"
-background: "#2f343f"
-details: "darker"
-foreground: "#d3dae3"
-terminal_colors:
-  bright:
-    black: "#2f343f"
-    red: "#d64937"
-    green: "#86df5d"
-    yellow: "#fdd75a"
-    blue: "#0f75bd"
-    magenta: "#9e5e83"
-    cyan: "#37c3d6"
-    white: "#f9f9f9"
-  normal:
-    black: "#262b36"
-    red: "#9c3528"
-    green: "#61bc3b"
-    yellow: "#f3b43a"
-    blue: "#0d68a8"
-    magenta: "#744560"
-    cyan: "#288e9c"
-    white: "#a2a2a2"
+name: Example Theme
+is_dark: true
+colors:
+  background: [0.05, 0.05, 0.05]
+  foreground: [0.95, 0.95, 0.95]
+  black: [0.0, 0.0, 0.0]
+  red: [0.9, 0.3, 0.3]
+  green: [0.3, 0.9, 0.3]
+  yellow: [0.9, 0.9, 0.3]
+  blue: [0.3, 0.3, 0.9]
+  magenta: [0.9, 0.3, 0.9]
+  cyan: [0.3, 0.9, 0.9]
+  white: [0.8, 0.8, 0.8]
+  bright_black: [0.2, 0.2, 0.2]
+  bright_red: [1.0, 0.0, 0.0]
+  bright_green: [0.0, 1.0, 0.0]
+  bright_yellow: [1.0, 1.0, 0.0]
+  bright_blue: [0.0, 0.0, 1.0]
+  bright_magenta: [1.0, 0.0, 1.0]
+  bright_cyan: [0.0, 1.0, 1.0]
+  bright_white: [1.0, 1.0, 1.0]
+  block_background_dark: [0.1, 0.1, 0.1]
+  block_background_light: [0.9, 0.9, 0.9]
+accent_color: [0.6, 0.2, 0.8] # A purple accent
+border_color: [0.4, 0.4, 0.4]

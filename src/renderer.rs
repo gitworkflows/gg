@@ -1,6 +1,12 @@
 use iced::advanced::graphics::core::Element;
 use wgpu::{Device, Queue, Surface, SurfaceConfiguration};
 use cosmic_text::{FontSystem, SwashCache, Buffer as TextBuffer};
+use iced::{
+    widget::{column, container, text, scrollable},
+    Alignment, Length,
+};
+use crate::config::theme::WarpTheme;
+use crate::block::Block; // Import Block
 
 pub struct GpuRenderer {
     device: Device,
@@ -9,6 +15,7 @@ pub struct GpuRenderer {
     config: SurfaceConfiguration,
     font_system: FontSystem,
     swash_cache: SwashCache,
+    renderer: Renderer,
     
     // Performance metrics
     frame_time: std::time::Duration,
@@ -59,6 +66,7 @@ impl GpuRenderer {
 
         let font_system = FontSystem::new();
         let swash_cache = SwashCache::new();
+        let renderer = Renderer::new();
 
         Ok(GpuRenderer {
             device,
@@ -67,12 +75,13 @@ impl GpuRenderer {
             config,
             font_system,
             swash_cache,
+            renderer,
             frame_time: std::time::Duration::from_millis(16),
             fps: 60.0,
         })
     }
 
-    pub fn render_frame(&mut self) -> Result<(), wgpu::SurfaceError> {
+    pub fn render_frame(&mut self, content: &str) -> Result<(), wgpu::SurfaceError> {
         let start_time = std::time::Instant::now();
 
         let output = self.surface.get_current_texture()?;
@@ -103,7 +112,8 @@ impl GpuRenderer {
                 timestamp_writes: None,
             });
 
-            // TODO: Implement actual rendering logic
+            // Call the new render_text method
+            self.renderer.render_frame(content);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -130,6 +140,50 @@ impl GpuRenderer {
 
     pub fn get_frame_time(&self) -> std::time::Duration {
         self.frame_time
+    }
+}
+
+pub struct Renderer {
+    // Renderer might hold state related to rendering performance,
+    // or cached rendering artifacts.
+}
+
+impl Renderer {
+    pub fn new() -> Self {
+        Renderer {}
+    }
+
+    /// Renders a list of `Block`s into an Iced `Element`.
+    pub fn view_blocks<'a>(blocks: &'a [Block], theme: &WarpTheme) -> Element<'a, crate::terminal::Message> {
+        let content = blocks.iter().fold(column![], |col, block| {
+            col.push(block.view(theme))
+        })
+        .spacing(10)
+        .width(Length::Fill)
+        .align_items(Alignment::Start);
+
+        scrollable(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
+
+    /// Renders a simple text message.
+    pub fn view_message<'a>(message: &str, theme: &WarpTheme) -> Element<'a, crate::terminal::Message> {
+        container(
+            text(message)
+                .size(18)
+                .color(theme.get_foreground_color())
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x()
+        .center_y()
+        .into()
+    }
+
+    pub fn render_frame(&self, content: &str) {
+        println!("Rendering frame with content:\n{}", content);
     }
 }
 

@@ -1,50 +1,45 @@
-# Warp Terminal
+# Warp Terminal Clone
 
-Warp Terminal is an Agentic Development Environment designed to help developers ship faster by leveraging AI agents. Built with Rust for high performance and featuring a modern user experience, Warp revolutionizes how you interact with your terminal.
+This is a Rust-based terminal application, aiming to replicate some of the features found in modern terminals like Warp.
 
-## Key Features:
+## Features (Planned/In Progress)
 
-### **Warp AI**
-Warp intelligently auto-detects whether you are typing a natural language prompt or a traditional command. This allows you to seamlessly switch between modes:
-- Use natural language prompts to have Warp write code for you.
-- Debug issues with AI assistance.
-- Generate complex commands based on your descriptions.
+- **Basic Shell Integration**: Execute commands and display output.
+- **Block-based UI**: Organize commands and their output into distinct blocks.
+- **Customizable Themes**: Support for loading and applying themes.
+- **Command Palette**: Quick access to commands and workflows.
+- **Prompt Customization**: Configure the appearance and information displayed in the prompt.
+- **Profile Management**: Create and switch between different user profiles with unique settings.
+- **Workflow Management**: Define and execute custom workflows.
+- **Warp Drive**: A central panel for managing workflows, notebooks, and environment variables.
+- **Fuzzy Matching**: Intelligent suggestions for commands.
+- **File System Integration**: Basic file system navigation and watching.
+- **Collaboration Features**: (Future) Real-time collaboration on terminal sessions.
+- **Plugin System**: (Future) Extend functionality with plugins.
+- **Configuration System**: Persistent storage for user preferences and settings.
+- **Syntax Highlighting**: (Future) Highlight syntax in command input and output.
+- **Theme Editor**: (Future) GUI for creating and editing themes.
+- **Accessibility Settings**: (Future) Options for improved accessibility.
 
-### **Multi-Agent Management**
-Designed to run multiple AI agents concurrently, Warp ensures you stay informed and in control:
-- Agents send notifications when they require your input.
-- A dedicated panel allows you to monitor and manage all your active agents.
+## Technologies Used
 
-### **Warp Code**
-Optimized for code generation, Warp facilitates writing code by prompt, even on large, existing codebases:
-- When an opportunity for code generation is detected, Warp enters an advanced code generation flow.
-- This feature streamlines development by automating repetitive coding tasks and assisting with complex implementations.
+- **Rust**: Primary programming language.
+- **Iced**: A cross-platform GUI library for Rust, inspired by Elm.
+- **Tokio**: Asynchronous runtime for handling shell processes and I/O.
+- **Serde**: For serialization/deserialization of configuration and data.
+- **Uuid**: For generating unique identifiers.
+- **Notify**: For file system event watching.
 
-### **Warp Drive**
-Warp Drive provides integrated tools for personal and team use, enhancing your development workflow:
-- **Notebooks**: Organize and execute your commands and notes.
-- **Workflows**: Browse, search, execute, and share predefined command sequences, with support for parameterized arguments and intelligent resolution.
-- **Environment Variables**: Manage your environment settings efficiently.
-All Warp Drive data serves as valuable context for Warp AI, improving its intelligence and relevance.
+## Getting Started
 
-### **Modern UX and Text Editing**
-Experience a terminal designed for efficiency and customization:
-- **Blocks**: Inputs (commands or prompts) and their corresponding outputs are grouped into intuitive blocks for easy readability and management.
-- **Navigation**: Navigate through your terminal history with ease using your cursor or customizable keybindings.
-- **Input Editor**: A highly optimized input editor provides a seamless typing experience.
+### Prerequisites
 
-### **Customization**
-Warp is built to adapt to your unique preferences:
-- Fully customize its appearance with comprehensive theme support, including built-in themes and user-definable YAML themes.
-- Tailor AI prompts to your specific needs.
-- Adjust settings and keybindings to optimize your workflow.
+- Rust (latest stable version recommended)
+- Cargo (Rust's package manager, installed with Rust)
 
-## Compatibility:
-Warp works seamlessly with popular shells:
-- `zsh`
-- `bash`
-- `fish`
-- `PowerShell`
+### Building and Running
 
-## Performance:
-Built with Rust, Warp offers a high-performance terminal experience, ensuring speed and responsiveness even with demanding workloads.
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/warp-terminal-clone.git
+    cd warp-terminal-clone

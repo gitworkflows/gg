@@ -75,4 +75,16 @@ impl CollaborationManager {
             timestamp: Utc::now(),
         }
     }
+
+    pub fn start_session(&self, _session_id: &str) {
+        println!("Starting collaboration session: {}", _session_id);
+    }
+
+    pub fn join_session(&self, _session_id: &str) {
+        println!("Joining collaboration session: {}", _session_id);
+    }
+
+    pub fn send_update(&self, _update: &str) {
+        println!("Sending collaboration update: {}", _update);
+    }
 }

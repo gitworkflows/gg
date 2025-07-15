@@ -45,4 +45,9 @@ impl AgentExecutor {
         
         Ok(js_result)
     }
+
+    pub fn execute_agent_command(&self, command: &str) -> String {
+        // Dummy implementation
+        format!("Executing agent command: {}", command)
+    }
 }

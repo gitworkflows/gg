@@ -1,43 +1,49 @@
-use iced::{Element, widget::{button, column, container, text, pick_list}};
+use iced::{
+    widget::{column, text, pick_list},
+    Element, Length,
+};
+
+use crate::themes::WarpTheme;
 use crate::terminal::Message;
-use crate::themes::ThemeManager;
+
+#[derive(Debug, Clone)]
+pub enum ThemeSelectorMessage {
+    ThemeSelected(String),
+}
 
 pub struct ThemeSelector {
     available_themes: Vec<String>,
-    selected_theme: Option<String>,
+    selected_theme: String,
 }
 
 impl ThemeSelector {
-    pub fn new(theme_manager: &ThemeManager) -> Self {
-        let available_themes = theme_manager.get_available_themes();
-        let current_theme = theme_manager.get_current_theme();
-        
-        ThemeSelector {
-            available_themes: available_themes.clone(),
-            selected_theme: available_themes.first().cloned(),
+    pub fn new(available_themes: Vec<String>, current_theme_name: String) -> Self {
+        Self {
+            available_themes,
+            selected_theme: current_theme_name,
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
-        let theme_picker = pick_list(
-            &self.available_themes[..],
-            self.selected_theme.as_ref(),
-            |theme| Message::ThemeChanged(theme.clone())
-        )
-        .placeholder("Select a theme...");
+    pub fn update(&mut self, message: ThemeSelectorMessage) -> Option<Message> {
+        match message {
+            ThemeSelectorMessage::ThemeSelected(theme_name) => {
+                self.selected_theme = theme_name.clone();
+                Some(Message::ThemeChanged(WarpTheme::from_name(&theme_name)))
+            }
+        }
+    }
 
-        let reload_button = button("Reload Themes")
-            .on_press(Message::ThemeReloaded);
-
-        container(
-            column![
-                text("Theme Selection").size(16),
-                theme_picker,
-                reload_button,
-            ]
-            .spacing(8)
-        )
-        .padding(16)
+    pub fn view(&self) -> Element<ThemeSelectorMessage> {
+        column![
+            text("Select Theme:"),
+            pick_list(
+                self.available_themes.clone(),
+                Some(self.selected_theme.clone()),
+                ThemeSelectorMessage::ThemeSelected,
+            )
+            .width(Length::Fill),
+        ]
+        .spacing(10)
         .into()
     }
 }

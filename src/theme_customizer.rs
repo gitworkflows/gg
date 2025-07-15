@@ -1,6 +1,6 @@
 use iced::{Element, widget::{
     button, column, container, text, text_input, row, scrollable, 
-    color_picker, pick_list
+    color_picker, pick_list, slider
 }};
 use iced::{Alignment, Length, Color};
 
@@ -20,6 +20,14 @@ pub enum ThemeCustomizerMessage {
     PreviewToggled(bool),
     ExportTheme,
     ImportTheme(String),
+    ToggleVisibility,
+    SelectBaseTheme(String),
+    UpdateBackgroundColor(f32),
+    UpdateForegroundColor(f32),
+    UpdateAccentColor(f32),
+    UpdateBorderColor(f32),
+    UpdateBlockBackgroundColor(f32),
+    ThemeNameChanged(String),
 }
 
 pub struct ThemeCustomizer {
@@ -30,6 +38,7 @@ pub struct ThemeCustomizer {
     is_visible: bool,
     preview_enabled: bool,
     color_picker_state: ColorPickerState,
+    theme_name_input: String,
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +66,7 @@ impl ThemeCustomizer {
             color_picker_state: ColorPickerState {
                 active_picker: None,
             },
+            theme_name_input: format!("{}_custom", current_theme.name),
         }
     }
 
@@ -153,6 +163,40 @@ impl ThemeCustomizer {
             ThemeCustomizerMessage::ImportTheme(yaml_content) => {
                 Some(Message::ImportTheme(yaml_content))
             }
+            ThemeCustomizerMessage::ToggleVisibility => {
+                self.is_visible = !self.is_visible;
+                None
+            }
+            ThemeCustomizerMessage::SelectBaseTheme(name) => {
+                self.current_theme = WarpTheme::from_name(&name);
+                self.theme_name_input = format!("{}_custom", name);
+                None
+            }
+            ThemeCustomizerMessage::UpdateBackgroundColor(value) => {
+                self.current_theme.colors.insert("background".to_string(), [value, value, value]);
+                None
+            }
+            ThemeCustomizerMessage::UpdateForegroundColor(value) => {
+                self.current_theme.colors.insert("foreground".to_string(), [value, value, value]);
+                None
+            }
+            ThemeCustomizerMessage::UpdateAccentColor(value) => {
+                self.current_theme.accent_color = [value, value, value];
+                None
+            }
+            ThemeCustomizerMessage::UpdateBorderColor(value) => {
+                self.current_theme.border_color = [value, value, value];
+                None
+            }
+            ThemeCustomizerMessage::UpdateBlockBackgroundColor(value) => {
+                self.current_theme.colors.insert("block_background_dark".to_string(), [value, value, value]);
+                self.current_theme.colors.insert("block_background_light".to_string(), [1.0 - value, 1.0 - value, 1.0 - value]); // Invert for light
+                None
+            }
+            ThemeCustomizerMessage::ThemeNameChanged(name) => {
+                self.theme_name_input = name;
+                None
+            }
         }
     }
 
@@ -164,6 +208,12 @@ impl ThemeCustomizer {
         if !self.is_visible {
             return container(text("")).into();
         }
+
+        let current_bg = self.current_theme.colors.get("background").unwrap_or(&[0.0, 0.0, 0.0])[0];
+        let current_fg = self.current_theme.colors.get("foreground").unwrap_or(&[0.0, 0.0, 0.0])[0];
+        let current_accent = self.current_theme.accent_color[0];
+        let current_border = self.current_theme.border_color[0];
+        let current_block_bg = self.current_theme.colors.get("block_background_dark").unwrap_or(&[0.0, 0.0, 0.0])[0];
 
         let header = row![
             text("Theme Customizer").size(20),
@@ -199,6 +249,46 @@ impl ThemeCustomizer {
                     ]
                     .spacing(16)
                 ).height(Length::Fixed(400.0)),
+                row![
+                    text("Background Color:"),
+                    slider(0.0..=1.0, current_bg, ThemeCustomizerMessage::UpdateBackgroundColor)
+                        .width(Length::Fill),
+                    text(format!("{:.2}", current_bg)),
+                ]
+                .spacing(10)
+                .align_items(iced::Alignment::Center),
+                row![
+                    text("Foreground Color:"),
+                    slider(0.0..=1.0, current_fg, ThemeCustomizerMessage::UpdateForegroundColor)
+                        .width(Length::Fill),
+                    text(format!("{:.2}", current_fg)),
+                ]
+                .spacing(10)
+                .align_items(iced::Alignment::Center),
+                row![
+                    text("Accent Color:"),
+                    slider(0.0..=1.0, current_accent, ThemeCustomizerMessage::UpdateAccentColor)
+                        .width(Length::Fill),
+                    text(format!("{:.2}", current_accent)),
+                ]
+                .spacing(10)
+                .align_items(iced::Alignment::Center),
+                row![
+                    text("Border Color:"),
+                    slider(0.0..=1.0, current_border, ThemeCustomizerMessage::UpdateBorderColor)
+                        .width(Length::Fill),
+                    text(format!("{:.2}", current_border)),
+                ]
+                .spacing(10)
+                .align_items(iced::Alignment::Center),
+                row![
+                    text("Block Background:"),
+                    slider(0.0..=1.0, current_block_bg, ThemeCustomizerMessage::UpdateBlockBackgroundColor)
+                        .width(Length::Fill),
+                    text(format!("{:.2}", current_block_bg)),
+                ]
+                .spacing(10)
+                .align_items(iced::Alignment::Center),
                 actions,
             ]
             .spacing(16)
@@ -206,16 +296,12 @@ impl ThemeCustomizer {
         )
         .width(Length::Fixed(500.0))
         .height(Length::Fixed(600.0))
-        .style(|theme: &iced::Theme| {
-            container::Appearance {
-                background: Some(iced::Background::Color(iced::Color::from_rgb(0.1, 0.1, 0.1))),
-                border: iced::Border {
-                    color: iced::Color::from_rgb(0.3, 0.3, 0.3),
-                    width: 2.0,
-                    radius: 8.0.into(),
-                },
-                ..Default::default()
-            }
+        .style(move |_theme: &iced::Theme| container::Appearance {
+            background: Some(iced::Background::Color(self.current_theme.get_block_background_color(self.current_theme.is_dark))),
+            border_radius: 8.0.into(),
+            border_width: 2.0,
+            border_color: self.current_theme.get_border_color(),
+            ..Default::default()
         })
         .into()
     }
@@ -354,10 +440,10 @@ impl ThemeCustomizer {
 
     fn create_actions_section(&self) -> Element<ThemeCustomizerMessage> {
         row![
-            text_input("Theme name", &self.custom_theme_name)
+            text_input("Theme name", &self.theme_name_input)
                 .width(Length::Fixed(150.0)),
             button("Save")
-                .on_press(ThemeCustomizerMessage::SaveCustomTheme(self.custom_theme_name.clone())),
+                .on_press(ThemeCustomizerMessage::SaveTheme),
             button("Reset")
                 .on_press(ThemeCustomizerMessage::ResetToBase),
             button("Export")

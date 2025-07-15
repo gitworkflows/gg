@@ -1,235 +1,114 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::collections::HashMap;
+use crate::config::theme::WarpTheme; // Corrected import path
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum PromptStyle {
-    Warp,
-    Shell,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WarpConfig {
+    pub preferences: UserPreferences,
+    pub font_family: String,
+    pub font_size: u16,
+    pub shell: String,
+    pub theme: String, // Name of the active theme
+    pub keybindings: KeyBindings,
+    pub prompt: PromptSettings,
 }
 
-impl Default for PromptStyle {
+impl Default for WarpConfig {
     fn default() -> Self {
-        PromptStyle::Warp
+        Self {
+            preferences: UserPreferences::default(),
+            font_family: "Fira Code".to_string(),
+            font_size: 16,
+            shell: "bash".to_string(), // or "powershell.exe" on Windows
+            theme: "Default Dark".to_string(),
+            keybindings: KeyBindings::default(),
+            prompt: PromptSettings::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserPreferences {
+    pub enable_fuzzy_search: bool,
+    pub enable_collaboration: bool,
+    pub show_welcome_message: bool,
+    pub max_history_size: usize,
+    pub enable_auto_update: bool,
+}
+
+impl Default for UserPreferences {
+    fn default() -> Self {
+        Self {
+            enable_fuzzy_search: true,
+            enable_collaboration: false,
+            show_welcome_message: true,
+            max_history_size: 1000,
+            enable_auto_update: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeyBindings {
+    pub submit_input: String,
+    pub history_up: String,
+    pub history_down: String,
+    pub clear_terminal: String,
+    pub toggle_fullscreen: String,
+    pub open_command_palette: String,
+    pub open_preferences: String,
+    pub open_theme_customizer: String,
+    pub open_profile_manager: String,
+    pub open_workflow_browser: String,
+    pub open_warp_drive: String, // New keybinding
+    // Add more keybindings as needed
+}
+
+impl Default for KeyBindings {
+    fn default() -> Self {
+        Self {
+            submit_input: "Enter".to_string(),
+            history_up: "Up".to_string(),
+            history_down: "Down".to_string(),
+            clear_terminal: "Ctrl+L".to_string(),
+            toggle_fullscreen: "F11".to_string(),
+            open_command_palette: "Ctrl+P".to_string(),
+            open_preferences: "Ctrl+, ".to_string(),
+            open_theme_customizer: "Ctrl+T".to_string(),
+            open_profile_manager: "Ctrl+Shift+P".to_string(),
+            open_workflow_browser: "Ctrl+W".to_string(),
+            open_warp_drive: "Ctrl+Shift+D".to_string(), // Default value
+        }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptSettings {
-    pub style: PromptStyle,
-    pub same_line_prompt: bool,
-    pub context_chips: Vec<String>, // e.g., "cwd", "git", "kubernetes", "time"
+    pub show_user: bool,
+    pub show_host: bool,
+    pub show_cwd: bool,
+    pub show_git_status: bool,
+    pub user_symbol: String,
+    pub host_symbol: String,
+    pub cwd_symbol: String,
+    pub git_symbol: String,
+    pub prompt_symbol: String,
 }
 
 impl Default for PromptSettings {
     fn default() -> Self {
-        PromptSettings {
-            style: PromptStyle::Warp,
-            same_line_prompt: false,
-            context_chips: vec![
-                "cwd".to_string(),
-                "git".to_string(),
-                "time".to_string(),
-            ],
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WarpConfig {
-    pub theme: String,
-    pub font_size: u16,
-    pub font_family: String,
-    pub shell: String,
-    pub startup_commands: Vec<String>,
-    pub keybindings: KeyBindings,
-    pub preferences: UserPreferences,
-    pub custom_themes: HashMap<String, CustomThemeOverrides>,
-    pub prompt: PromptSettings, // Add this line
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserPreferences {
-    pub auto_save_session: bool,
-    pub show_timestamps: bool,
-    pub enable_fuzzy_search: bool,
-    pub max_history_size: usize,
-    pub scroll_sensitivity: f32,
-    pub animation_speed: f32,
-    pub blur_background: bool,
-    pub transparency: f32,
-    pub cursor_style: CursorStyle,
-    pub tab_behavior: TabBehavior,
-    pub notification_settings: NotificationSettings,
-    pub performance: PerformanceSettings,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CustomThemeOverrides {
-    pub accent: Option<String>,
-    pub background: Option<String>,
-    pub foreground: Option<String>,
-    pub terminal_colors: Option<TerminalColorOverrides>,
-    pub ui_elements: Option<UiElementColors>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TerminalColorOverrides {
-    pub bright: Option<ColorPaletteOverrides>,
-    pub normal: Option<ColorPaletteOverrides>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ColorPaletteOverrides {
-    pub black: Option<String>,
-    pub red: Option<String>,
-    pub green: Option<String>,
-    pub yellow: Option<String>,
-    pub blue: Option<String>,
-    pub magenta: Option<String>,
-    pub cyan: Option<String>,
-    pub white: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UiElementColors {
-    pub button_background: Option<String>,
-    pub button_hover: Option<String>,
-    pub input_background: Option<String>,
-    pub border_color: Option<String>,
-    pub selection_color: Option<String>,
-    pub error_color: Option<String>,
-    pub warning_color: Option<String>,
-    pub success_color: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyBindings {
-    pub new_tab: String,
-    pub close_tab: String,
-    pub next_tab: String,
-    pub prev_tab: String,
-    pub clear_screen: String,
-    pub copy: String,
-    pub paste: String,
-    pub search: String,
-    pub preferences: String,
-    pub theme_selector: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum CursorStyle {
-    Block,
-    Underline,
-    Beam,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TabBehavior {
-    pub close_on_exit: bool,
-    pub confirm_close: bool,
-    pub new_tab_directory: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NotificationSettings {
-    pub enable_notifications: bool,
-    pub command_completion: bool,
-    pub error_notifications: bool,
-    pub sound_enabled: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PerformanceSettings {
-    pub max_fps: u32,
-    pub gpu_acceleration: bool,
-    pub memory_limit_mb: usize,
-    pub lazy_rendering: bool,
-    pub buffer_size: usize,
-}
-
-impl Default for WarpConfig {
-    fn default() -> Self {
-        WarpConfig {
-            theme: "default".to_string(),
-            font_size: 14,
-            font_family: "JetBrains Mono".to_string(),
-            shell: "zsh".to_string(),
-            startup_commands: vec![],
-            keybindings: KeyBindings::default(),
-            preferences: UserPreferences::default(),
-            custom_themes: HashMap::new(),
-            prompt: PromptSettings::default(), // Add this line
-        }
-    }
-}
-
-impl Default for UserPreferences {
-    fn default() -> Self {
-        UserPreferences {
-            auto_save_session: true,
-            show_timestamps: true,
-            enable_fuzzy_search: true,
-            max_history_size: 1000,
-            scroll_sensitivity: 1.0,
-            animation_speed: 1.0,
-            blur_background: false,
-            transparency: 1.0,
-            cursor_style: CursorStyle::Block,
-            tab_behavior: TabBehavior::default(),
-            notification_settings: NotificationSettings::default(),
-            performance: PerformanceSettings::default(),
-        }
-    }
-}
-
-impl Default for TabBehavior {
-    fn default() -> Self {
-        TabBehavior {
-            close_on_exit: true,
-            confirm_close: false,
-            new_tab_directory: "~".to_string(),
-        }
-    }
-}
-
-impl Default for NotificationSettings {
-    fn default() -> Self {
-        NotificationSettings {
-            enable_notifications: true,
-            command_completion: false,
-            error_notifications: true,
-            sound_enabled: false,
-        }
-    }
-}
-
-impl Default for PerformanceSettings {
-    fn default() -> Self {
-        PerformanceSettings {
-            max_fps: 60,
-            gpu_acceleration: true,
-            memory_limit_mb: 512,
-            lazy_rendering: true,
-            buffer_size: 10000,
-        }
-    }
-}
-
-impl Default for KeyBindings {
-    fn default() -> Self {
-        KeyBindings {
-            new_tab: "Ctrl+T".to_string(),
-            close_tab: "Ctrl+W".to_string(),
-            next_tab: "Ctrl+Tab".to_string(),
-            prev_tab: "Ctrl+Shift+Tab".to_string(),
-            clear_screen: "Ctrl+L".to_string(),
-            copy: "Ctrl+C".to_string(),
-            paste: "Ctrl+V".to_string(),
-            search: "Ctrl+F".to_string(),
-            preferences: "Ctrl+Comma".to_string(),
-            theme_selector: "Ctrl+Shift+T".to_string(),
+        Self {
+            show_user: true,
+            show_host: true,
+            show_cwd: true,
+            show_git_status: true,
+            user_symbol: "👤".to_string(),
+            host_symbol: "💻".to_string(),
+            cwd_symbol: "📁".to_string(),
+            git_symbol: "🌿".to_string(),
+            prompt_symbol: "❯".to_string(),
         }
     }
 }
@@ -241,33 +120,22 @@ pub struct ConfigManager {
 
 impl ConfigManager {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let config_dir = dirs::config_dir()
-            .ok_or("Could not find config directory")?;
-        
-        let config_path = config_dir.join("warp-terminal").join("config.yaml");
-        
-        // Create config directory if it doesn't exist
-        if let Some(parent) = config_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
+        let config_dir = directories::config_dir().unwrap_or_else(|| PathBuf::from("."));
+        let app_config_dir = config_dir.join("warp-terminal-clone");
+        fs::create_dir_all(&app_config_dir)?;
+        let config_path = app_config_dir.join("config.json");
 
         let config = if config_path.exists() {
-            let content = fs::read_to_string(&config_path)?;
-            serde_yaml::from_str(&content).unwrap_or_else(|e| {
-                eprintln!("Failed to parse config: {}, using defaults", e);
-                WarpConfig::default()
-            })
+            let config_str = fs::read_to_string(&config_path)?;
+            serde_json::from_str(&config_str)?
         } else {
             let default_config = WarpConfig::default();
-            let yaml_content = serde_yaml::to_string(&default_config)?;
-            fs::write(&config_path, yaml_content)?;
+            let json_string = serde_json::to_string_pretty(&default_config)?;
+            fs::write(&config_path, json_string)?;
             default_config
         };
 
-        Ok(ConfigManager {
-            config,
-            config_path,
-        })
+        Ok(Self { config, config_path })
     }
 
     pub fn get_config(&self) -> &WarpConfig {
@@ -278,42 +146,57 @@ impl ConfigManager {
         &self.config.preferences
     }
 
-    pub fn update_config(&mut self, config: WarpConfig) -> Result<(), Box<dyn std::error::Error>> {
-        self.config = config;
-        self.save_config()
-    }
-
-    pub fn update_preferences(&mut self, preferences: UserPreferences) -> Result<(), Box<dyn std::error::Error>> {
-        self.config.preferences = preferences;
-        self.save_config()
-    }
-
-    pub fn save_config(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let yaml_content = serde_yaml::to_string(&self.config)?;
-        fs::write(&self.config_path, yaml_content)?;
-        Ok(())
-    }
-
-    pub fn set_theme(&mut self, theme_name: String) -> Result<(), Box<dyn std::error::Error>> {
-        self.config.theme = theme_name;
-        self.save_config()
-    }
-
-    pub fn add_custom_theme_override(&mut self, theme_name: String, overrides: CustomThemeOverrides) -> Result<(), Box<dyn std::error::Error>> {
-        self.config.custom_themes.insert(theme_name, overrides);
-        self.save_config()
-    }
-
-    pub fn get_custom_theme_override(&self, theme_name: &str) -> Option<&CustomThemeOverrides> {
-        self.config.custom_themes.get(theme_name)
+    pub fn get_keybindings(&self) -> &KeyBindings {
+        &self.config.keybindings
     }
 
     pub fn get_prompt_settings(&self) -> &PromptSettings {
         &self.config.prompt
     }
 
-    pub fn update_prompt_settings(&mut self, prompt_settings: PromptSettings) -> Result<(), Box<dyn std::error::Error>> {
-        self.config.prompt = prompt_settings;
+    pub fn update_config(&mut self, new_config: WarpConfig) -> Result<(), Box<dyn std::error::Error>> {
+        self.config = new_config;
         self.save_config()
+    }
+
+    pub fn update_preferences(&mut self, new_preferences: UserPreferences) -> Result<(), Box<dyn std::error::Error>> {
+        self.config.preferences = new_preferences;
+        self.save_config()
+    }
+
+    pub fn update_keybindings(&mut self, new_keybindings: KeyBindings) -> Result<(), Box<dyn std::error::Error>> {
+        self.config.keybindings = new_keybindings;
+        self.save_config()
+    }
+
+    pub fn update_prompt_settings(&mut self, new_prompt_settings: PromptSettings) -> Result<(), Box<dyn std::error::Error>> {
+        self.config.prompt = new_prompt_settings;
+        self.save_config()
+    }
+
+    fn save_config(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let json_string = serde_json::to_string_pretty(&self.config)?;
+        fs::write(&self.config_path, json_string)?;
+        Ok(())
+    }
+
+    pub fn default() -> Self {
+        Self {
+            config: WarpConfig::default(),
+            config_path: PathBuf::from("config.json"), // Dummy path for default
+        }
+    }
+}
+
+// Placeholder for main config module
+pub struct MainConfig;
+
+impl MainConfig {
+    pub fn new() -> Self {
+        MainConfig
+    }
+
+    pub fn load(&self) {
+        println!("Loading main configuration.");
     }
 }
