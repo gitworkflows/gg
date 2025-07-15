@@ -3,6 +3,39 @@ use std::fs;
 use std::path::PathBuf;
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PromptStyle {
+    Warp,
+    Shell,
+}
+
+impl Default for PromptStyle {
+    fn default() -> Self {
+        PromptStyle::Warp
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptSettings {
+    pub style: PromptStyle,
+    pub same_line_prompt: bool,
+    pub context_chips: Vec<String>, // e.g., "cwd", "git", "kubernetes", "time"
+}
+
+impl Default for PromptSettings {
+    fn default() -> Self {
+        PromptSettings {
+            style: PromptStyle::Warp,
+            same_line_prompt: false,
+            context_chips: vec![
+                "cwd".to_string(),
+                "git".to_string(),
+                "time".to_string(),
+            ],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WarpConfig {
     pub theme: String,
@@ -13,6 +46,7 @@ pub struct WarpConfig {
     pub keybindings: KeyBindings,
     pub preferences: UserPreferences,
     pub custom_themes: HashMap<String, CustomThemeOverrides>,
+    pub prompt: PromptSettings, // Add this line
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +160,7 @@ impl Default for WarpConfig {
             keybindings: KeyBindings::default(),
             preferences: UserPreferences::default(),
             custom_themes: HashMap::new(),
+            prompt: PromptSettings::default(), // Add this line
         }
     }
 }
@@ -271,5 +306,14 @@ impl ConfigManager {
 
     pub fn get_custom_theme_override(&self, theme_name: &str) -> Option<&CustomThemeOverrides> {
         self.config.custom_themes.get(theme_name)
+    }
+
+    pub fn get_prompt_settings(&self) -> &PromptSettings {
+        &self.config.prompt
+    }
+
+    pub fn update_prompt_settings(&mut self, prompt_settings: PromptSettings) -> Result<(), Box<dyn std::error::Error>> {
+        self.config.prompt = prompt_settings;
+        self.save_config()
     }
 }

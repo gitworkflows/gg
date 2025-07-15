@@ -4,11 +4,12 @@ use std::collections::VecDeque;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 use std::path::PathBuf;
+use std::collections::HashMap;
 
 use crate::blocks::{Block, BlockContent, BlockMessage};
 use crate::editor::{EnhancedTextInput, EditorMessage, text_input};
 use crate::shell::{ShellManager, ShellMessage};
-use crate::fuzzy::FuzzyMatcher;
+use crate::fuzzy_match::FuzzyMatcher; // Updated import path
 use crate::collaboration::CollaborationManager;
 use crate::themes::{ThemeManager, WarpTheme};
 use crate::preferences::{PreferencesWindow, PreferencesMessage};
@@ -17,6 +18,10 @@ use crate::config::{ConfigManager, UserPreferences, KeyBindings};
 use crate::profiles::{ProfileManager, UserProfile};
 use crate::profile_manager_ui::{ProfileManagerUI, ProfileManagerMessage};
 use crate::profile_switcher::{ProfileSwitcher, ProfileSwitcherMessage};
+use crate::workflows::{WorkflowManager, Workflow};
+use crate::workflow_browser::{WorkflowBrowser, WorkflowBrowserMessage};
+use crate::workflow_executor::{WorkflowExecutor, WorkflowExecutorMessage};
+use crate::watcher::{FileWatcherService, FileWatcherEvent}; // New import
 
 pub struct WarpTerminal {
     // Core state
@@ -38,6 +43,7 @@ pub struct WarpTerminal {
     // Communication channels
     shell_sender: Option<mpsc::UnboundedSender<ShellMessage>>,
     shell_receiver: Option<mpsc::UnboundedReceiver<String>>,
+    file_watcher_event_receiver: Option<mpsc::UnboundedReceiver<FileWatcherEvent>>, // New field
     
     // Performance tracking
     frame_count: u64,
@@ -53,6 +59,14 @@ pub struct WarpTerminal {
     profile_manager_ui: ProfileManagerUI,
     profile_switcher: ProfileSwitcher,
     current_directory: PathBuf,
+
+    // Workflow system
+    workflow_manager: WorkflowManager,
+    workflow_browser: WorkflowBrowser,
+    workflow_executor: WorkflowExecutor,
+
+    // File watcher service instance (to keep it alive)
+    _file_watcher_service: FileWatcherService,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +106,7 @@ pub enum Message {
     Tick,
     FileChanged(PathBuf),
     DirectoryChanged(PathBuf),
+    FileWatcherEvent(FileWatcherEvent), // New message variant for file watcher events
 
     // Preferences
     PreferencesOpened,
@@ -131,6 +146,22 @@ pub enum Message {
     AddToQuickSwitch(Uuid),
     RemoveFromQuickSwitch(Uuid),
     CheckAutoSwitchRules,
+
+    // Workflow management
+    WorkflowBrowserOpened,
+    WorkflowBrowserClosed,
+    WorkflowBrowserMessage(WorkflowBrowserMessage),
+    WorkflowExecutorMessage(WorkflowExecutorMessage),
+    ExecuteWorkflow(Uuid),
+    ExecuteWorkflowWithArguments(Uuid, HashMap<String, String>),
+    AddWorkflowToFavorites(Uuid),
+    RemoveWorkflowFromFavorites(Uuid),
+    EditWorkflow(Uuid),
+    DeleteWorkflow(Uuid),
+    CreateNewWorkflow,
+    ImportWorkflow,
+    ExportWorkflow(Uuid),
+    RefreshWorkflows,
 }
 
 impl Application for WarpTerminal {
@@ -188,6 +219,29 @@ impl Application for WarpTerminal {
         );
 
         let current_directory = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+
+        let workflow_manager = WorkflowManager::new().unwrap_or_else(|e| {
+            eprintln!("Failed to initialize workflow manager: {}", e);
+            WorkflowManager::new().unwrap()
+        });
+
+        let mut workflow_browser = WorkflowBrowser::new();
+        workflow_browser.update_workflows(&workflow_manager);
+
+        let workflow_executor = WorkflowExecutor::new();
+
+        // Initialize FileWatcherService
+        let (mut file_watcher_service, file_watcher_event_receiver) = FileWatcherService::new().unwrap_or_else(|e| {
+            eprintln!("Failed to initialize file watcher service: {}", e);
+            // Fallback to a dummy service and receiver if initialization fails
+            let (tx, rx) = mpsc::unbounded_channel();
+            (FileWatcherService::new_dummy(), rx)
+        });
+
+        // Start watching the current directory (or home directory)
+        if let Err(e) = file_watcher_service.watch(&current_directory) {
+            eprintln!("Failed to start watching current directory: {}", e);
+        }
         
         let terminal = WarpTerminal {
             blocks: VecDeque::new(),
@@ -205,6 +259,7 @@ impl Application for WarpTerminal {
             
             shell_sender: Some(shell_sender),
             shell_receiver: Some(shell_receiver),
+            file_watcher_event_receiver: Some(file_watcher_event_receiver), // Store the receiver
             
             frame_count: 0,
             last_render_time: std::time::Instant::now(),
@@ -217,6 +272,11 @@ impl Application for WarpTerminal {
             profile_manager_ui,
             profile_switcher,
             current_directory,
+
+            workflow_manager,
+            workflow_browser,
+            workflow_executor,
+            _file_watcher_service: file_watcher_service, // Store the service instance
         };
 
         let initial_command = Command::batch([
@@ -501,91 +561,154 @@ impl Application for WarpTerminal {
                 }
                 Command::none()
             }
+
+            Message::WorkflowBrowserOpened => {
+                self.workflow_browser.update_workflows(&self.workflow_manager);
+                self.workflow_browser.show();
+                Command::none()
+            }
+
+            Message::WorkflowBrowserClosed => {
+                self.workflow_browser.hide();
+                Command::none()
+            }
+
+            Message::WorkflowBrowserMessage(msg) => {
+                if let Some(terminal_msg) = self.workflow_browser.update(msg) {
+                    self.update(terminal_msg)
+                } else {
+                    Command::none()
+                }
+            }
+
+            Message::WorkflowExecutorMessage(msg) => {
+                if let Some(terminal_msg) = self.workflow_executor.update(msg) {
+                    self.update(terminal_msg)
+                } else {
+                    Command::none()
+                }
+            }
+
+            Message::ExecuteWorkflow(workflow_id) => {
+                if let Some(workflow) = self.workflow_manager.get_workflow(&workflow_id) {
+                    if workflow.arguments.is_some() && !workflow.arguments.as_ref().unwrap().is_empty() {
+                        // Show executor dialog for workflows with arguments
+                        self.workflow_executor.show_workflow(workflow.clone());
+                        Command::none()
+                    } else {
+                        // Execute directly for workflows without arguments
+                        match self.workflow_manager.execute_workflow(workflow_id, HashMap::new()) {
+                            Ok(command) => {
+                                self.update(Message::InputChanged(command.clone())).then(|| {
+                                    self.update(Message::InputSubmitted)
+                                })
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to execute workflow: {}", e);
+                                Command::none()
+                            }
+                        }
+                    }
+                } else {
+                    Command::none()
+                }
+            }
+
+            Message::ExecuteWorkflowWithArguments(workflow_id, arguments) => {
+                match self.workflow_manager.execute_workflow(workflow_id, arguments) {
+                    Ok(command) => {
+                        self.current_input = command;
+                        self.update(Message::InputSubmitted)
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to execute workflow: {}", e);
+                        Command::none()
+                    }
+                    _ => Command::none(), // Added to handle the case where execute_workflow returns an error
+                }
+            }
+
+            Message::AddWorkflowToFavorites(workflow_id) => {
+                self.workflow_manager.add_to_favorites(workflow_id);
+                self.workflow_browser.update_workflows(&self.workflow_manager);
+                Command::none()
+            }
+
+            Message::RemoveWorkflowFromFavorites(workflow_id) => {
+                self.workflow_manager.remove_from_favorites(&workflow_id);
+                self.workflow_browser.update_workflows(&self.workflow_manager);
+                Command::none()
+            }
+
+            Message::RefreshWorkflows => {
+                if let Err(e) = self.workflow_manager.load_workflows() {
+                    eprintln!("Failed to refresh workflows: {}", e);
+                }
+                self.workflow_browser.update_workflows(&self.workflow_manager);
+                Command::none()
+            }
+
+            Message::FileWatcherEvent(event) => {
+                match event {
+                    FileWatcherEvent::FileChanged(path) => {
+                        println!("File changed: {:?}", path);
+                        // TODO: Handle file change, e.g., reload config, update display
+                    }
+                    FileWatcherEvent::FileCreated(path) => {
+                        println!("File created: {:?}", path);
+                    }
+                    FileWatcherEvent::FileDeleted(path) => {
+                        println!("File deleted: {:?}", path);
+                    }
+                    FileWatcherEvent::DirectoryChanged(path) => {
+                        println!("Directory changed: {:?}", path);
+                        // Potentially re-evaluate auto-switch rules if directory changes
+                        return self.update(Message::CheckAutoSwitchRules);
+                    }
+                    FileWatcherEvent::Error(e) => {
+                        eprintln!("File watcher error: {}", e);
+                    }
+                }
+                Command::none()
+            }
             
             _ => Command::none(),
         }
     }
 
-    fn view(&self) -> Element<Message> {
-        let current_theme = if let Some(profile) = self.profile_manager.get_active_profile() {
-            // Use theme from active profile
-            self.theme_manager.get_current_theme()
-        } else {
-            self.theme_manager.get_current_theme()
-        };
-        
-        let blocks_view = scrollable(
-            column(
-                self.blocks
-                    .iter()
-                    .map(|block| block.view(current_theme))
-                    .collect::<Vec<_>>()
-            )
-            .spacing(8)
-        )
-        .height(iced::Length::Fill);
-
-        let input_view = self.create_input_view(current_theme);
-        
-        // Create toolbar with profile switcher and other buttons
-        let toolbar = row![
-            self.profile_switcher.view().map(Message::ProfileSwitcherMessage),
-            button("Preferences")
-                .on_press(Message::PreferencesOpened),
-            button("Customize Theme")
-                .on_press(Message::ThemeCustomizerOpened),
-        ]
-        .spacing(8)
-        .padding(4)
-        .align_items(iced::Alignment::Center);
-
-        let main_content = column![
-            toolbar,
-            blocks_view,
-            input_view
-        ]
-        .spacing(4)
-        .padding(8);
-
-        // Layer the various UI components
-        let mut content = vec![
-            container(main_content)
-                .style(move |_theme: &iced::Theme| {
-                    container::Appearance {
-                        background: Some(iced::Background::Color(current_theme.get_background_color())),
-                        ..Default::default()
+    fn subscription(&self) -> Subscription<Message> {
+        let shell_subscription = self.shell_receiver.as_ref().map(|mut receiver| {
+            iced::Subscription::batch(vec![
+                iced::Subscription::run("shell_output_receiver", async move {
+                    loop {
+                        if let Some(output) = receiver.recv().await {
+                            // This part needs to be adjusted as CommandOutput expects Uuid and String
+                            // For now, just print to demonstrate
+                            println!("Shell output received: {}", output);
+                        }
                     }
                 })
-                .width(iced::Length::Fill)
-                .height(iced::Length::Fill)
-                .into()
-        ];
+            ])
+        }).unwrap_or(Subscription::none());
 
-        // Add modal overlays
-        if self.preferences_window.is_visible() {
-            content.push(self.create_modal_overlay(
-                self.preferences_window.view().map(Message::PreferencesMessage)
-            ));
-        }
+        let file_watcher_subscription = self.file_watcher_event_receiver.as_ref().map(|mut receiver| {
+            iced::Subscription::batch(vec![
+                iced::Subscription::run("file_watcher_events", async move {
+                    loop {
+                        if let Some(event) = receiver.recv().await {
+                            yield Message::FileWatcherEvent(event);
+                        }
+                    }
+                })
+            ])
+        }).unwrap_or(Subscription::none());
 
-        if self.theme_customizer.is_visible() {
-            content.push(self.create_modal_overlay(
-                self.theme_customizer.view().map(Message::ThemeCustomizerMessage)
-            ));
-        }
-
-        if self.profile_manager_ui.is_visible() {
-            content.push(self.create_modal_overlay(
-                self.profile_manager_ui.view().map(Message::ProfileManagerMessage)
-            ));
-        }
-
-        stack(content).into()
-    }
-
-    fn subscription(&self) -> Subscription<Message> {
-        iced::time::every(std::time::Duration::from_millis(16))
-            .map(|_| Message::Tick)
+        Subscription::batch(vec![
+            iced::time::every(std::time::Duration::from_millis(16))
+                .map(|_| Message::Tick),
+            shell_subscription,
+            file_watcher_subscription,
+        ])
     }
 }
 
@@ -642,5 +765,17 @@ impl WarpTerminal {
             self.profile_manager.get_quick_switch_profiles().into_iter().cloned().collect(),
             active_profile_id
         );
+    }
+}
+
+// Dummy implementation for FileWatcherService::new_dummy()
+impl FileWatcherService {
+    fn new_dummy() -> Self {
+        // Create a dummy watcher that does nothing
+        let (tx, _rx) = mpsc::unbounded_channel();
+        FileWatcherService {
+            watcher: notify::RecommendedWatcher::new(move |res| { /* do nothing */ }, notify::Config::default()).unwrap(),
+            event_receiver: tx.subscribe(), // Use a broadcast channel for dummy
+        }
     }
 }

@@ -5,7 +5,7 @@ use iced::{Element, widget::{
 use iced::{Alignment, Length};
 
 use crate::terminal::Message;
-use crate::config::{UserPreferences, CursorStyle, KeyBindings, NotificationSettings, PerformanceSettings};
+use crate::config::{UserPreferences, CursorStyle, KeyBindings, NotificationSettings, PerformanceSettings, PromptSettings, PromptStyle};
 
 #[derive(Debug, Clone)]
 pub enum PreferencesMessage {
@@ -35,6 +35,11 @@ pub enum PreferencesMessage {
     ResetToDefaults,
     Save,
     Cancel,
+    PromptTabSelected(PromptTab), // New
+    PromptStyleChanged(PromptStyle), // New
+    SameLinePromptToggled(bool), // New
+    ContextChipToggled(String, bool), // New (chip name, enabled)
+    ContextChipMoved(String, usize, usize), // New (chip name, from index, to index)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +49,14 @@ pub enum PreferencesTab {
     Performance,
     KeyBindings,
     Notifications,
+    Prompt, // Add this line
+}
+
+// Define a new enum for Prompt sub-tabs (if needed, for now just one)
+#[derive(Debug, Clone, PartialEq)]
+pub enum PromptTab {
+    General,
+    ContextChips,
 }
 
 pub struct PreferencesWindow {
@@ -53,6 +66,7 @@ pub struct PreferencesWindow {
     font_size: u16,
     shell: String,
     keybindings: KeyBindings,
+    prompt_settings: PromptSettings, // Add this line
     is_visible: bool,
 }
 
@@ -63,6 +77,7 @@ impl PreferencesWindow {
         font_size: u16,
         shell: String,
         keybindings: KeyBindings,
+        prompt_settings: PromptSettings, // Add this line
     ) -> Self {
         PreferencesWindow {
             active_tab: PreferencesTab::General,
@@ -71,6 +86,7 @@ impl PreferencesWindow {
             font_size,
             shell,
             keybindings,
+            prompt_settings, // Add this line
             is_visible: false,
         }
     }
@@ -200,6 +216,7 @@ impl PreferencesWindow {
                 self.font_size = 14;
                 self.font_family = "JetBrains Mono".to_string();
                 self.shell = "zsh".to_string();
+                self.prompt_settings = PromptSettings::default(); // Reset prompt settings
                 None
             }
             PreferencesMessage::Save => {
@@ -210,10 +227,45 @@ impl PreferencesWindow {
                     font_size: self.font_size,
                     shell: self.shell.clone(),
                     keybindings: self.keybindings.clone(),
+                    prompt_settings: self.prompt_settings.clone(), // Pass prompt settings
                 })
             }
             PreferencesMessage::Cancel => {
                 self.is_visible = false;
+                None
+            }
+            // New prompt message handling
+            PreferencesMessage::PromptTabSelected(tab) => {
+                self.active_tab = PreferencesTab::Prompt; // Ensure we are on the Prompt tab
+                // If you had sub-tabs within Prompt, you'd update a sub-tab state here
+                None
+            }
+            PreferencesMessage::PromptStyleChanged(style) => {
+                self.prompt_settings.style = style;
+                None
+            }
+            PreferencesMessage::SameLinePromptToggled(enabled) => {
+                self.prompt_settings.same_line_prompt = enabled;
+                None
+            }
+            PreferencesMessage::ContextChipToggled(chip_name, enabled) => {
+                if enabled {
+                    if !self.prompt_settings.context_chips.contains(&chip_name) {
+                        self.prompt_settings.context_chips.push(chip_name);
+                    }
+                } else {
+                    self.prompt_settings.context_chips.retain(|c| c != &chip_name);
+                }
+                None
+            }
+            PreferencesMessage::ContextChipMoved(chip_name, from_idx, to_idx) => {
+                // This is a simplified move. For a real drag-and-drop, you'd need more complex logic.
+                if let Some(index) = self.prompt_settings.context_chips.iter().position(|c| c == &chip_name) {
+                    if index == from_idx { // Only move if the chip is at the expected 'from' position
+                        let chip = self.prompt_settings.context_chips.remove(from_idx);
+                        self.prompt_settings.context_chips.insert(to_idx, chip);
+                    }
+                }
                 None
             }
         }
@@ -232,6 +284,7 @@ impl PreferencesWindow {
                 (PreferencesTab::Performance, Tab::new("Performance")),
                 (PreferencesTab::KeyBindings, Tab::new("Key Bindings")),
                 (PreferencesTab::Notifications, Tab::new("Notifications")),
+                (PreferencesTab::Prompt, Tab::new("Prompt")), // Add this line
             ],
             PreferencesMessage::TabSelected,
         );
@@ -242,6 +295,7 @@ impl PreferencesWindow {
             PreferencesTab::Performance => self.performance_tab(),
             PreferencesTab::KeyBindings => self.keybindings_tab(),
             PreferencesTab::Notifications => self.notifications_tab(),
+            PreferencesTab::Prompt => self.prompt_tab(), // Add this line
         };
 
         let buttons = row![
@@ -452,6 +506,49 @@ impl PreferencesWindow {
             .spacing(8)
         ).into()
     }
+
+    fn prompt_tab(&self) -> Element<PreferencesMessage> {
+        let prompt_styles = vec![PromptStyle::Warp, PromptStyle::Shell];
+        let available_chips = vec![
+            "cwd".to_string(),
+            "git".to_string(),
+            "kubernetes".to_string(),
+            "pyenv".to_string(),
+            "date".to_string(),
+            "time".to_string(),
+            // Add more as needed
+        ];
+
+        let context_chip_toggles: Vec<Element<PreferencesMessage>> = available_chips
+            .into_iter()
+            .map(|chip| {
+                let is_enabled = self.prompt_settings.context_chips.contains(&chip);
+                self.create_checkbox(&format!("{} chip", chip), is_enabled, move |checked| {
+                    PreferencesMessage::ContextChipToggled(chip.clone(), checked)
+                })
+            })
+            .collect();
+
+        column![
+            self.create_section("Prompt Style", vec![
+                container(
+                    row![
+                        text("Prompt Type:").width(Length::Fixed(120.0)),
+                        pick_list(
+                            prompt_styles,
+                            Some(self.prompt_settings.style.clone()),
+                            PreferencesMessage::PromptStyleChanged
+                        )
+                    ]
+                    .align_items(Alignment::Center)
+                ).into(),
+                self.create_checkbox("Same line prompt", self.prompt_settings.same_line_prompt, PreferencesMessage::SameLinePromptToggled),
+            ]),
+            self.create_section("Context Chips", context_chip_toggles),
+        ]
+        .spacing(16)
+        .into()
+    }
 }
 
 impl std::fmt::Display for CursorStyle {
@@ -460,6 +557,15 @@ impl std::fmt::Display for CursorStyle {
             CursorStyle::Block => write!(f, "Block"),
             CursorStyle::Underline => write!(f, "Underline"),
             CursorStyle::Beam => write!(f, "Beam"),
+        }
+    }
+}
+
+impl std::fmt::Display for PromptStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PromptStyle::Warp => write!(f, "Warp Prompt"),
+            PromptStyle::Shell => write!(f, "Shell Prompt (PS1)"),
         }
     }
 }

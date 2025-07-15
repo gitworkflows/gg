@@ -72,6 +72,8 @@ tokio-tungstenite = "0.20"
 
 # WASM runtime for plugins
 wasmtime = "14.0"
+wasmer = "4.2" # Added for Agent Mode Eval
+deno_core = "0.260" # Added for Agent Mode Eval
 
 # Image processing
 image = "0.24"
@@ -94,6 +96,13 @@ rfd = "0.12"
 
 # Git repository support
 git2 = "0.18"
+
+# Virtual File System (FUSE)
+fuser = "0.14" # Added for Virtual FS
+tokio-fuse = "0.1" # Added for Virtual FS
+
+# ONNX Runtime for Natural Language Processing
+ort = { version = "2.0", features = ["ndarray"] } # Added for Natural Language
 
 # Temporary directories for testing
 [dev-dependencies]
