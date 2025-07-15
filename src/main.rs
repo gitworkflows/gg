@@ -12,6 +12,13 @@ mod editor;
 mod renderer;
 mod fuzzy;
 mod collaboration;
+mod themes;
+mod preferences;
+mod theme_customizer;
+mod config;
+mod profiles;
+mod profile_manager_ui;
+mod profile_switcher;
 
 use terminal::WarpTerminal;
 

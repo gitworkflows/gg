@@ -92,6 +92,9 @@ palette = "0.7"
 # File dialog
 rfd = "0.12"
 
+# Git repository support
+git2 = "0.18"
+
 # Temporary directories for testing
 [dev-dependencies]
 tempfile = "3.0"

@@ -4,6 +4,7 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
 use crate::terminal::Message;
+use crate::themes::WarpTheme;
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -94,9 +95,9 @@ impl Block {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
-        let header = self.create_header();
-        let content = self.create_content();
+    pub fn view(&self, theme: &WarpTheme) -> Element<Message> {
+        let header = self.create_header(theme);
+        let content = self.create_content(theme);
         
         container(
             column![
@@ -106,17 +107,13 @@ impl Block {
             .spacing(4)
         )
         .padding(8)
-        .style(|theme: &iced::Theme| {
+        .style(move |_theme: &iced::Theme| {
             container::Appearance {
                 background: Some(iced::Background::Color(
-                    if matches!(theme, iced::Theme::Dark) {
-                        iced::Color::from_rgb(0.1, 0.1, 0.1)
-                    } else {
-                        iced::Color::from_rgb(0.95, 0.95, 0.95)
-                    }
+                    theme.get_block_background_color(theme.is_dark_theme())
                 )),
                 border: iced::Border {
-                    color: iced::Color::from_rgb(0.3, 0.3, 0.3),
+                    color: theme.get_border_color(),
                     width: 1.0,
                     radius: 4.0.into(),
                 },
@@ -127,25 +124,25 @@ impl Block {
         .into()
     }
 
-    fn create_header(&self) -> Element<Message> {
+    fn create_header(&self, theme: &WarpTheme) -> Element<Message> {
         let timestamp_text = text(
             self.timestamp.format("%H:%M:%S").to_string()
         )
         .size(12)
-        .color(iced::Color::from_rgb(0.6, 0.6, 0.6));
+        .color(theme.get_terminal_color("white", false));
 
         let status_indicator = match (&self.content, self.exit_code) {
             (BlockContent::Command { is_running: true, .. }, _) => {
-                text("●").color(iced::Color::from_rgb(1.0, 0.8, 0.0)) // Yellow for running
+                text("●").color(theme.get_terminal_color("yellow", true)) // Yellow for running
             }
             (_, Some(0)) => {
-                text("●").color(iced::Color::from_rgb(0.0, 0.8, 0.0)) // Green for success
+                text("●").color(theme.get_terminal_color("green", true)) // Green for success
             }
             (_, Some(_)) => {
-                text("●").color(iced::Color::from_rgb(0.8, 0.0, 0.0)) // Red for error
+                text("●").color(theme.get_terminal_color("red", true)) // Red for error
             }
             _ => {
-                text("●").color(iced::Color::from_rgb(0.5, 0.5, 0.5)) // Gray for unknown
+                text("●").color(theme.get_terminal_color("white", false)) // Gray for unknown
             }
         };
 
@@ -158,17 +155,17 @@ impl Block {
         .into()
     }
 
-    fn create_content(&self) -> Element<Message> {
+    fn create_content(&self, theme: &WarpTheme) -> Element<Message> {
         match &self.content {
             BlockContent::Command { input, output, is_running } => {
                 let input_text = text(format!("$ {}", input))
                     .size(14)
-                    .color(iced::Color::from_rgb(0.8, 0.8, 1.0));
+                    .color(theme.get_terminal_color("blue", true));
 
                 let output_text = if output.is_empty() && *is_running {
-                    text("Running...").color(iced::Color::from_rgb(0.6, 0.6, 0.6))
+                    text("Running...").color(theme.get_terminal_color("yellow", false))
                 } else {
-                    text(output).size(14)
+                    text(output).size(14).color(theme.get_foreground_color())
                 };
 
                 column![
@@ -180,16 +177,15 @@ impl Block {
             }
             
             BlockContent::Markdown(content) => {
-                // TODO: Implement markdown rendering
-                text(content).into()
+                text(content).color(theme.get_foreground_color()).into()
             }
             
             BlockContent::FilePreview { path, content, .. } => {
                 column![
                     text(format!("File: {}", path.display()))
                         .size(12)
-                        .color(iced::Color::from_rgb(0.6, 0.6, 0.6)),
-                    text(content).size(14)
+                        .color(theme.get_terminal_color("cyan", false)),
+                    text(content).size(14).color(theme.get_foreground_color())
                 ]
                 .spacing(4)
                 .into()
@@ -197,21 +193,21 @@ impl Block {
             
             BlockContent::Error { message, details } => {
                 let mut col = column![
-                    text(message).color(iced::Color::from_rgb(0.8, 0.0, 0.0))
+                    text(message).color(theme.get_terminal_color("red", true))
                 ];
                 
                 if let Some(details) = details {
                     col = col.push(
                         text(details)
                             .size(12)
-                            .color(iced::Color::from_rgb(0.6, 0.6, 0.6))
+                            .color(theme.get_terminal_color("white", false))
                     );
                 }
                 
                 col.spacing(4).into()
             }
             
-            _ => text("Unsupported block type").into(),
+            _ => text("Unsupported block type").color(theme.get_foreground_color()).into(),
         }
     }
 }
